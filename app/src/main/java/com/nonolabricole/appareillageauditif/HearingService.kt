@@ -117,7 +117,8 @@ class HearingService : Service() {
         val cfg = if (needEngine) {
             AudioEngine.Config(
                 playback = remoteMic,
-                lowLatency = remoteMic && prefs.lowLatency,
+                linkMode = prefs.linkMode,
+                bufferMode = prefs.bufferMode,
                 outputKey = prefs.outputKey.ifEmpty { null },
                 inputFromHearingAid = !remoteMic && captions && external && prefs.captionSource == "aid",
                 micMode = prefs.micMode

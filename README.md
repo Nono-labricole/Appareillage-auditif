@@ -53,16 +53,29 @@ l'appareil, elle utilise simplement la sortie audio Bluetooth qui, elle, fonctio
 5. La **réduction du bruit de fond** baisse automatiquement le son entre les phrases
    (bruits de couverts, ventilation…).
 
-**Liaison Bluetooth** :
+**Liaison avec l'appareil** (le décalage vient surtout du Bluetooth) :
 
-- *Qualité* (par défaut) : son riche, mais le Bluetooth classique ajoute un décalage
-  (≈ 150 à 250 ms selon les appareils). Comme les micros des appareils restent actifs, vous
-  pouvez entendre un léger écho pour les voix proches.
-- *Faible latence* : utilise le profil « appel téléphonique » du Bluetooth. Le décalage est
-  bien plus court (moins d'écho), le son est un peu moins riche (16 kHz, suffisant pour la
-  voix). Certains appareils baissent leurs propres micros pendant un « appel ».
+| Réglage | Ce qui est utilisé | Décalage typique |
+|---|---|---|
+| *Automatique* (par défaut) | la liaison la plus rapide pour l'appareil connecté | — |
+| *Mode appel* | profil « appel » : HFP en Bluetooth classique, conversation LC3 en LE Audio | ≈ 30–60 ms |
+| *Mode musique* | profil « musique » : A2DP en Bluetooth classique | ≈ 150–250 ms |
 
-Essayez les deux et gardez celui qui vous convient le mieux.
+En automatique : Bluetooth classique (Phonak Marvel/Paradise/Lumity et la plupart des
+marques) → mode appel ; LE Audio → mode conversation ; ASHA, filaire, USB, Auracast →
+utilisés tels quels (déjà rapides). Le mode appel donne un son 16 kHz, suffisant pour la
+voix ; certains appareils baissent un peu leurs propres micros pendant un « appel ».
+
+**Tampon audio** : *Minimal* (par défaut) démarre avec le plus petit tampon possible et
+l'agrandit tout seul uniquement si des craquements apparaissent ; *Équilibré* et *Stable*
+sont prévus pour les téléphones plus lents.
+
+L'écran affiche la **liaison utilisée** et le **décalage estimé** par Android (micro +
+traitement + Bluetooth déclaré par le téléphone) : pratique pour comparer les réglages.
+
+**Réduire encore l'écho** : demandez à votre audioprothésiste de régler, dans le logiciel
+du fabricant, l'atténuation des micros de l'appareil pendant le streaming. Les micros
+restent actifs mais un peu plus bas : l'écho devient quasi imperceptible. Ça ne coûte rien.
 
 **Sécurité anti-larsen** : si les appareils se déconnectent, la sortie est immédiatement
 coupée pour que le son ne parte jamais dans le haut-parleur du téléphone.
@@ -98,8 +111,10 @@ Google). Si rien ne s'affiche, installez/mettez à jour l'application **Google**
 
 - Kotlin, sans dépendance réseau, aucune donnée envoyée par l'application elle-même
   (la reconnaissance en ligne, si utilisée, passe par le moteur du téléphone).
-- `audio/AudioEngine.kt` : capture (AudioRecord), routage Bluetooth (A2DP, SCO, ASHA,
-  LE Audio, Auracast), sortie basse latence (AudioTrack), coupure anti-larsen.
+- `audio/AudioEngine.kt` : capture (AudioRecord), choix automatique de la liaison la plus
+  rapide (A2DP, HFP/SCO, ASHA, LE Audio, Auracast), fréquence et taille de bloc natives,
+  tampon de sortie auto-ajusté selon les coupures, rattrapage du retard côté micro,
+  estimation de la latence, coupure anti-larsen.
 - `audio/Dsp.kt` : passe-haut, égaliseur de clarté, expanseur (réduction de bruit),
   compresseur, limiteur ; ré-échantillonnage 48 → 16 kHz pour la transcription.
 - `captions/TranscriptionEngine.kt` : reconnaissance continue avec `SpeechRecognizer`.

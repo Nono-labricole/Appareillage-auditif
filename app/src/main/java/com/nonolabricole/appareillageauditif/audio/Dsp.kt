@@ -181,20 +181,22 @@ class VoiceProcessor(private val fs: Int) {
     }
 }
 
-/** Passe de 48 kHz à 16 kHz (format attendu par la reconnaissance vocale). */
-class Decimator3 {
+/** Ramène l'audio à 16 kHz (format attendu par la reconnaissance vocale). */
+class Decimator(fs: Int) {
+    private val factor = (fs / 16000).coerceAtLeast(1)
     // Butterworth d'ordre 4 à 7 kHz, en deux sections.
-    private val lp1 = Biquad().apply { lowPass(48000, 7000.0, 0.541) }
-    private val lp2 = Biquad().apply { lowPass(48000, 7000.0, 1.307) }
+    private val lp1 = Biquad().apply { lowPass(fs, 7000.0, 0.541) }
+    private val lp2 = Biquad().apply { lowPass(fs, 7000.0, 1.307) }
     private var phase = 0
 
     fun process(input: ShortArray, n: Int): ShortArray {
-        val out = ShortArray(n / 3 + 1)
+        if (factor == 1) return input.copyOf(n)
+        val out = ShortArray(n / factor + 1)
         var k = 0
         for (i in 0 until n) {
             val y = lp2.process(lp1.process(input[i].toFloat()))
             if (phase == 0) out[k++] = y.coerceIn(-32768f, 32767f).toInt().toShort()
-            phase = (phase + 1) % 3
+            phase = (phase + 1) % factor
         }
         return out.copyOf(k)
     }

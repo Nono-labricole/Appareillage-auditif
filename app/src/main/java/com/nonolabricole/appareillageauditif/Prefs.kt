@@ -18,10 +18,19 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("noiseReduction", true)
         set(v) = sp.edit().putBoolean("noiseReduction", v).apply()
 
-    /** Faux = qualité (Bluetooth média), vrai = faible latence (Bluetooth « appel »). */
-    var lowLatency: Boolean
-        get() = sp.getBoolean("lowLatency", false)
-        set(v) = sp.edit().putBoolean("lowLatency", v).apply()
+    /**
+     * "auto" (liaison la plus rapide disponible), "call" (Bluetooth « appel » HFP / LE Audio
+     * conversation) ou "quality" (Bluetooth « musique » A2DP / LE Audio média).
+     */
+    var linkMode: String
+        get() = sp.getString("linkMode", null)
+            ?: if (sp.getBoolean("lowLatency", false)) "call" else "auto"
+        set(v) = sp.edit().putString("linkMode", v).apply()
+
+    /** Taille du tampon de sortie : "minimal", "balanced" ou "stable". */
+    var bufferMode: String
+        get() = sp.getString("bufferMode", "minimal").orEmpty()
+        set(v) = sp.edit().putString("bufferMode", v).apply()
 
     /** Clé de l'appareil de sortie choisi, vide = automatique. */
     var outputKey: String

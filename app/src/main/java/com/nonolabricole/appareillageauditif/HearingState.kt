@@ -14,6 +14,10 @@ object HearingState {
     /** Vrai quand la sortie est coupée pour éviter un larsen (aucun appareil connecté). */
     val outputBlocked = MutableStateFlow(false)
     val status = MutableStateFlow("")
+    /** Latence estimée micro → sortie, en ms (-1 = inconnue). */
+    val latencyMs = MutableStateFlow(-1)
+    /** Liaison réellement utilisée par le micro déporté. */
+    val activeLink = MutableStateFlow("")
     val captionInfo = MutableStateFlow("")
 
     val lines = MutableStateFlow<List<String>>(emptyList())

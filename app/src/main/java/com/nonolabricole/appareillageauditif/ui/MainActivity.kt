@@ -54,7 +54,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var clarityLabel: TextView
     private lateinit var claritySlider: Slider
     private lateinit var noiseSwitch: MaterialSwitch
-    private lateinit var latencyGroup: RadioGroup
+    private lateinit var linkSpinner: Spinner
+    private lateinit var linkHelp: TextView
+    private lateinit var bufferSpinner: Spinner
+    private lateinit var linkText: TextView
     private lateinit var micSpinner: Spinner
     private lateinit var captionsSwitch: MaterialSwitch
     private lateinit var captionInfo: TextView
@@ -73,6 +76,24 @@ class MainActivity : AppCompatActivity() {
         "natural" to "Naturel (recommandé)",
         "phone_nr" to "Filtre anti-bruit du téléphone",
         "raw" to "Micro brut"
+    )
+    private val linkModes = listOf(
+        "auto" to "Automatique – la plus rapide (recommandé)",
+        "call" to "Mode appel (basse latence, son 16 kHz)",
+        "quality" to "Mode musique (son riche, plus de latence)"
+    )
+    private val linkHelps = mapOf(
+        "auto" to "Choisit la liaison la plus rapide selon l'appareil : mode appel pour le Bluetooth classique " +
+            "(Phonak, la plupart des marques), conversation LE Audio, ASHA ou filaire tels quels.",
+        "call" to "Profil « appel téléphonique » : 3 à 5 fois moins de décalage que le mode musique. " +
+            "Certains appareils baissent un peu leurs propres micros pendant un « appel ».",
+        "quality" to "Profil « musique » : meilleur son, mais 150 à 250 ms de décalage en Bluetooth classique " +
+            "(écho possible avec les micros des appareils)."
+    )
+    private val bufferModes = listOf(
+        "minimal" to "Minimal – le plus rapide (s'agrandit seul en cas de craquements)",
+        "balanced" to "Équilibré",
+        "stable" to "Stable – pour les téléphones lents"
     )
     private val languages = listOf(
         "" to "Langue du téléphone",
@@ -121,7 +142,10 @@ class MainActivity : AppCompatActivity() {
         clarityLabel = findViewById(R.id.clarityLabel)
         claritySlider = findViewById(R.id.claritySlider)
         noiseSwitch = findViewById(R.id.noiseSwitch)
-        latencyGroup = findViewById(R.id.latencyGroup)
+        linkSpinner = findViewById(R.id.linkSpinner)
+        linkHelp = findViewById(R.id.linkHelp)
+        bufferSpinner = findViewById(R.id.bufferSpinner)
+        linkText = findViewById(R.id.linkText)
         micSpinner = findViewById(R.id.micSpinner)
         captionsSwitch = findViewById(R.id.captionsSwitch)
         captionInfo = findViewById(R.id.captionInfo)
@@ -188,9 +212,14 @@ class MainActivity : AppCompatActivity() {
             selected == null ->
                 "Aucun appareil auditif ni écouteur connecté. Connectez-le en Bluetooth (il doit apparaître comme sortie audio)."
             selected.isNativeHearingAid ->
-                "« ${selected.name} » utilise un protocole d'appareil auditif reconnu par Android (${selected.kind}). Cette application fonctionne aussi avec."
+                "« ${selected.name} » utilise un protocole d'appareil auditif reconnu par Android (${selected.kind}) : " +
+                    "liaison rapide, l'application l'utilise directement."
+            selected.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ->
+                "« ${selected.name} » est connecté en Bluetooth classique (cas des Phonak Marvel, Paradise, Lumity…). " +
+                    "Android ne le considère pas comme un appareil auditif : cette application prend le relais. " +
+                    "Pour le moins de décalage, gardez la liaison « Automatique » ou « Mode appel »."
             else ->
-                "« ${selected.name} » est connecté en ${selected.kind.lowercase()} : Android ne le considère pas comme un appareil auditif, cette application prend le relais."
+                "« ${selected.name} » (${selected.kind}) : liaison directe, faible décalage."
         }
     }
 
@@ -215,9 +244,14 @@ class MainActivity : AppCompatActivity() {
             updateDsp()
         }
 
-        latencyGroup.check(if (prefs.lowLatency) R.id.latencyLow else R.id.latencyQuality)
-        latencyGroup.setOnCheckedChangeListener { _, checkedId ->
-            prefs.lowLatency = checkedId == R.id.latencyLow
+        setupChoice(linkSpinner, linkModes, prefs.linkMode) {
+            prefs.linkMode = it
+            linkHelp.text = linkHelps[it]
+            reapplyIfRunning()
+        }
+        linkHelp.text = linkHelps[prefs.linkMode]
+        setupChoice(bufferSpinner, bufferModes, prefs.bufferMode) {
+            prefs.bufferMode = it
             reapplyIfRunning()
         }
 
@@ -253,6 +287,22 @@ class MainActivity : AppCompatActivity() {
                 return@setOnCheckedChangeListener
             }
             applyService()
+        }
+    }
+
+    /** Menu déroulant simple : [onChange] reçoit la clé choisie quand elle change. */
+    private fun setupChoice(spinner: Spinner, choices: List<Pair<String, String>>, current: String, onChange: (String) -> Unit) {
+        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, choices.map { it.second })
+        var selected = choices.indexOfFirst { it.first == current }.coerceAtLeast(0)
+        spinner.setSelection(selected, false)
+        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (position == selected) return
+                selected = position
+                onChange(choices[position].first)
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
     }
 
@@ -404,6 +454,17 @@ class MainActivity : AppCompatActivity() {
                         statusText.text = it
                         statusText.visibility = if (it.isEmpty()) View.GONE else View.VISIBLE
                     }
+                }
+                launch {
+                    combine(HearingState.activeLink, HearingState.latencyMs) { link, ms -> link to ms }
+                        .collect { (link, ms) ->
+                            val text = buildString {
+                                if (link.isNotEmpty()) append("Liaison : ").append(link)
+                                if (ms > 0) append("\nDécalage estimé : ≈ ").append(ms).append(" ms")
+                            }
+                            linkText.text = text
+                            linkText.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
+                        }
                 }
                 launch {
                     HearingState.captionInfo.collect {

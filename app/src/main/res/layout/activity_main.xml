@@ -90,6 +90,14 @@
                     app:trackThickness="8dp" />
 
                 <TextView
+                    android:id="@+id/linkText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/gainLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -128,26 +136,31 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Liaison Bluetooth"
+                    android:text="Liaison avec l'appareil"
                     android:textAppearance="?attr/textAppearanceLabelLarge" />
 
-                <RadioGroup
-                    android:id="@+id/latencyGroup"
+                <Spinner
+                    android:id="@+id/linkSpinner"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
+                    android:layout_height="48dp" />
 
-                    <RadioButton
-                        android:id="@+id/latencyQuality"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Qualité (son riche, léger décalage)" />
+                <TextView
+                    android:id="@+id/linkHelp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceBodySmall" />
 
-                    <RadioButton
-                        android:id="@+id/latencyLow"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Faible latence (mode « appel », moins d'écho)" />
-                </RadioGroup>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Tampon audio"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <Spinner
+                    android:id="@+id/bufferSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp" />
 
                 <TextView
                     android:layout_width="wrap_content"
