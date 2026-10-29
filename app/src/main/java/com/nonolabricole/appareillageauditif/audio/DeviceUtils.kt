@@ -57,7 +57,7 @@ object DeviceUtils {
         TYPE_BLE_HEADSET -> "Bluetooth LE Audio"
         TYPE_BLE_BROADCAST -> "Auracast"
         AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth classique"
-        AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth (appel)"
+        AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth casque (profil appel)"
         AudioDeviceInfo.TYPE_USB_HEADSET -> "USB"
         AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "Filaire"
         else -> "Autre"
@@ -83,6 +83,10 @@ object DeviceUtils {
             .sortedBy { priority(it.type) }
 
     fun hasSafeOutput(am: AudioManager): Boolean = safeOutputs(am).isNotEmpty()
+
+    /** Un appareil utilisable en mode « appel » est connecté. */
+    fun hasCommOutput(am: AudioManager): Boolean =
+        am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in COMM_TYPES }
 
     /** Sortie « média » à utiliser pour l'appareil choisi (ou la meilleure disponible). */
     fun findMediaOutput(am: AudioManager, key: String?): AudioDeviceInfo? {

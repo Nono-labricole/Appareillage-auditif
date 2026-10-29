@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Bulle de sous-titres par-dessus les autres applications -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Pilotage du Bluetooth (mode appel) sur Android 12+ -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- Nécessaire uniquement pour le mode appel Bluetooth (SCO) sur Android 11 et moins -->
     <uses-permission
         android:name="android.permission.BLUETOOTH"

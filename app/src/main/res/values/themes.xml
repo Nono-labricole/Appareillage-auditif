@@ -12,7 +12,7 @@
         <item name="cardCornerRadius">28dp</item>
     </style>
 
-    <style name="TextAppearance.App.Header" parent="TextAppearance.Material3.HeadlineMedium" />
+    <style name="TextAppearance.App.Header" parent="TextAppearance.Material3.DisplaySmall" />
 
     <style name="TextAppearance.App.CardTitle" parent="TextAppearance.Material3.TitleLarge" />
 

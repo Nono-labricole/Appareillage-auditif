@@ -94,10 +94,14 @@ class AudioEngine(context: Context) {
     private fun wantsComm(cfg: Config): Boolean {
         if (cfg.inputFromHearingAid) return true
         if (!cfg.playback) return false
+        val media = DeviceUtils.findMediaOutput(am, cfg.outputKey)
+        // Appareil vu seulement comme « casque » (profil appel, sans profil musique) : c'est le
+        // cas de nombreux appareils auditifs. Le profil appel est alors la seule liaison possible.
+        if (media == null) return DeviceUtils.hasCommOutput(am)
         return when (cfg.linkMode) {
             "call" -> true
             "quality" -> false
-            else -> when (DeviceUtils.findMediaOutput(am, cfg.outputKey)?.type) {
+            else -> when (media.type) {
                 // Bluetooth classique : le profil « appel » est 3 à 5 fois plus rapide que le profil musique.
                 AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> true
                 // LE Audio : le mode conversation utilise la configuration LC3 basse latence.
@@ -135,11 +139,15 @@ class AudioEngine(context: Context) {
         val useComm = wantsComm(cfg)
         if (useComm && !enableCommRouting(cfg.outputKey)) {
             if (cfg.inputFromHearingAid) {
-                fail("Micro de l'appareil auditif indisponible (profil Bluetooth « appel » non trouvé). Utilisez le micro du téléphone.")
+                fail("Impossible d'utiliser le micro de l'appareil auditif ($commDiag). Utilisez le micro du téléphone.")
+                return
+            }
+            if (DeviceUtils.findMediaOutput(am, cfg.outputKey) == null) {
+                fail("Impossible d'ouvrir la liaison Bluetooth « appel » avec l'appareil ($commDiag).")
                 return
             }
             if (cfg.linkMode == "call") {
-                HearingState.status.value = "Mode appel indisponible avec cet appareil : liaison musique utilisée."
+                HearingState.status.value = "Mode appel indisponible ($commDiag) : liaison musique utilisée."
             }
         }
         val comm = useComm && (commDeviceSet || legacySco)
@@ -415,20 +423,49 @@ class AudioEngine(context: Context) {
         return track
     }
 
+    /** Explication lisible du dernier échec d'ouverture du profil « appel ». */
+    @Volatile private var commDiag = ""
+
+    /**
+     * Ouvre la liaison Bluetooth « appel » (HFP/SCO, LE Audio conversation…). Essaie la méthode
+     * moderne (Android 12+) puis l'ancienne, qui marche encore sur beaucoup de téléphones.
+     */
     @Suppress("DEPRECATION")
     private fun enableCommRouting(key: String?): Boolean {
         am.mode = AudioManager.MODE_IN_COMMUNICATION
         modeChanged = true
+        commDiag = ""
         if (Build.VERSION.SDK_INT >= 31) {
-            val candidates = am.availableCommunicationDevices.filter { it.type in DeviceUtils.COMM_TYPES }
+            val available = am.availableCommunicationDevices
+            val candidates = available.filter { it.type in DeviceUtils.COMM_TYPES }
             val device = candidates.firstOrNull { !key.isNullOrEmpty() && DeviceUtils.keyOf(it) == key }
                 ?: candidates.minByOrNull { commPriority(it.type) }
-            commDeviceSet = device != null && am.setCommunicationDevice(device)
-            commDeviceType = if (commDeviceSet) device!!.type else 0
-            if (!commDeviceSet) restoreMode()
-            return commDeviceSet
+            if (device == null) {
+                commDiag = "Android ne propose aucun appareil Bluetooth en mode appel ; " +
+                    "disponibles : " + available.joinToString { DeviceUtils.kindLabel(it.type) }.ifEmpty { "aucun" }
+            } else {
+                for (attempt in 0 until 3) {
+                    if (am.setCommunicationDevice(device)) {
+                        commDeviceSet = true
+                        break
+                    }
+                    SystemClock.sleep(400)
+                }
+                if (commDeviceSet) {
+                    commDeviceType = device.type
+                    // Attend que la liaison soit réellement ouverte.
+                    val deadline = SystemClock.elapsedRealtime() + 3000
+                    while (running && SystemClock.elapsedRealtime() < deadline &&
+                        am.communicationDevice?.id != device.id
+                    ) SystemClock.sleep(100)
+                    return true
+                }
+                commDiag = "Android a refusé de passer « ${device.productName} » en mode appel"
+            }
         }
+        // Ancienne méthode (et repli si la nouvelle a échoué).
         if (!am.isBluetoothScoAvailableOffCall) {
+            if (commDiag.isEmpty()) commDiag = "ce téléphone n'autorise pas le mode appel Bluetooth hors appel"
             restoreMode()
             return false
         }
@@ -437,11 +474,19 @@ class AudioEngine(context: Context) {
         legacySco = true
         commDeviceType = AudioDeviceInfo.TYPE_BLUETOOTH_SCO
         // Laisse le temps à la liaison « appel » de s'établir.
-        val deadline = SystemClock.elapsedRealtime() + 3000
+        val deadline = SystemClock.elapsedRealtime() + 4000
         while (running && SystemClock.elapsedRealtime() < deadline &&
-            am.getDevices(AudioManager.GET_DEVICES_INPUTS).none { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
+            am.getDevices(AudioManager.GET_DEVICES_INPUTS).none { it.type in DeviceUtils.COMM_TYPES }
         ) {
             SystemClock.sleep(min(100L, deadline - SystemClock.elapsedRealtime()).coerceAtLeast(1))
+        }
+        if (am.getDevices(AudioManager.GET_DEVICES_INPUTS).none { it.type in DeviceUtils.COMM_TYPES }) {
+            if (commDiag.isEmpty()) commDiag = "la liaison appel ne s'est pas ouverte"
+            am.isBluetoothScoOn = false
+            am.stopBluetoothSco()
+            legacySco = false
+            restoreMode()
+            return false
         }
         SystemClock.sleep(300)
         return true

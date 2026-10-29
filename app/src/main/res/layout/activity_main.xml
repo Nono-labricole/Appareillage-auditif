@@ -1,45 +1,239 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/root"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:clipToPadding="false"
     android:fillViewport="true">
 
     <LinearLayout
+        android:id="@+id/content"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:animateLayoutChanges="true"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="24dp">
 
+        <!-- En-tête -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="24dp"
+            android:paddingStart="4dp"
             android:text="@string/app_name"
             android:textAppearance="?attr/appHeaderAppearance"
             android:textColor="?attr/colorOnSurface" />
 
-        <TextView
+        <com.google.android.material.chip.Chip
+            android:id="@+id/deviceChip"
+            style="@style/Widget.Material3.Chip.Assist.Elevated"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp"
+            android:ellipsize="end"
+            android:maxWidth="320dp"
+            android:text="Aucun appareil connecté"
+            app:chipIcon="@drawable/ic_bluetooth"
+            app:chipIconTint="?attr/colorPrimary" />
+
+        <!-- Alerte -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/statusCard"
+            style="@style/Widget.Material3.CardView.Filled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
-            android:text="Sous-titres en direct · micro déporté"
-            android:textAppearance="?attr/textAppearanceLabelLarge"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:layout_marginBottom="16dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="?attr/colorErrorContainer"
+            app:cardCornerRadius="24dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="16dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="12dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_warning"
+                    app:tint="?attr/colorOnErrorContainer" />
+
+                <TextView
+                    android:id="@+id/statusText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="?attr/colorOnErrorContainer" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Les deux grandes commandes -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/remoteTile"
+                style="?attr/appCardStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="32dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingTop="24dp"
+                    android:paddingBottom="20dp">
+
+                    <FrameLayout
+                        android:layout_width="96dp"
+                        android:layout_height="96dp">
+
+                        <ImageView
+                            android:id="@+id/remoteShape"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/shape_cookie" />
+
+                        <ImageView
+                            android:id="@+id/remoteIcon"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:layout_gravity="center"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_mic" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="Micro déporté"
+                        android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+                    <TextView
+                        android:id="@+id/remoteState"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Désactivé"
+                        android:textAppearance="?attr/textAppearanceLabelMedium"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <Space
+                android:layout_width="12dp"
+                android:layout_height="1dp" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/captionsTile"
+                style="?attr/appCardStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="32dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingTop="24dp"
+                    android:paddingBottom="20dp">
+
+                    <FrameLayout
+                        android:layout_width="96dp"
+                        android:layout_height="96dp">
+
+                        <ImageView
+                            android:id="@+id/captionsShape"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/shape_flower" />
+
+                        <ImageView
+                            android:id="@+id/captionsIcon"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:layout_gravity="center"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_captions_tile" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="Sous-titres"
+                        android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+                    <TextView
+                        android:id="@+id/captionsState"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Désactivé"
+                        android:textAppearance="?attr/textAppearanceLabelMedium"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/statusText"
-            android:layout_width="match_parent"
+            android:id="@+id/linkText"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:background="?attr/colorErrorContainer"
-            android:padding="12dp"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnErrorContainer"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_pill"
+            android:paddingStart="16dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="8dp"
+            android:textAlignment="center"
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:textColor="?attr/colorOnSecondaryContainer"
             android:visibility="gone" />
 
-        <!-- Appareil auditif -->
+        <!-- Interrupteurs d'origine, pilotés par les grandes commandes -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/remoteSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/captionsSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
+
+        <Space
+            android:layout_width="1dp"
+            android:layout_height="16dp" />
+
         <com.google.android.material.card.MaterialCardView
             style="?attr/appCardStyle"
             android:layout_width="match_parent"
@@ -49,324 +243,185 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:animateLayoutChanges="true"
                 android:orientation="vertical"
                 android:padding="20dp">
 
-                <TextView
-                    android:textAppearance="?attr/appCardTitleAppearance"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Appareil auditif" />
-
-                <Spinner
-                    android:id="@+id/deviceSpinner"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginTop="8dp" />
-
-                <TextView
-                    android:id="@+id/deviceInfo"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textAppearance="?attr/textAppearanceBodySmall" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/bluetoothButton"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Réglages Bluetooth" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+                    <FrameLayout
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="14dp">
 
-        <!-- Micro déporté -->
-        <com.google.android.material.card.MaterialCardView
-            style="?attr/appCardStyle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp">
+                        <ImageView
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/shape_flower"
+                            app:tint="?attr/colorSecondaryContainer" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="20dp">
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_captions_tile"
+                            app:tint="?attr/colorOnSecondaryContainer" />
+                    </FrameLayout>
 
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/remoteSwitch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Micro déporté"
-                    android:textAppearance="?attr/appCardTitleAppearance" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Posez le téléphone au milieu de la table, écran vers le haut. Il capte les voix et les envoie, amplifiées, dans vos appareils (leurs micros restent actifs)."
-                    android:textAppearance="?attr/textAppearanceBodySmall" />
-
-                <com.google.android.material.progressindicator.LinearProgressIndicator
-                    android:id="@+id/levelMeter"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:max="100"
-                    app:trackThickness="8dp" />
-
-                <TextView
-                    android:id="@+id/linkText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:visibility="gone" />
-
-                <TextView
-                    android:id="@+id/gainLabel"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
-
-                <com.google.android.material.slider.Slider
-                    android:id="@+id/gainSlider"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:stepSize="1"
-                    android:valueFrom="0"
-                    android:valueTo="30" />
-
-                <TextView
-                    android:id="@+id/clarityLabel"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
-
-                <com.google.android.material.slider.Slider
-                    android:id="@+id/claritySlider"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:stepSize="1"
-                    android:valueFrom="0"
-                    android:valueTo="12" />
-
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/noiseSwitch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Réduction du bruit de fond" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="Liaison avec l'appareil"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
-
-                <Spinner
-                    android:id="@+id/linkSpinner"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp" />
-
-                <TextView
-                    android:id="@+id/linkHelp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="?attr/textAppearanceBodySmall" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Tampon audio"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
-
-                <Spinner
-                    android:id="@+id/bufferSpinner"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Type de micro"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
-
-                <Spinner
-                    android:id="@+id/micSpinner"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Sous-titres -->
-        <com.google.android.material.card.MaterialCardView
-            style="?attr/appCardStyle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="20dp">
-
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/captionsSwitch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Sous-titres en direct"
-                    android:textAppearance="?attr/appCardTitleAppearance" />
-
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/overlaySwitch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Bulle flottante par-dessus les autres applis" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Les sous-titres s'affichent aussi dans la notification (et sur l'écran verrouillé). Pour les activer d'un geste, ajoutez la tuile « Sous-titres » aux réglages rapides."
-                    android:textAppearance="?attr/textAppearanceBodySmall" />
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Sous-titres"
+                        android:textAppearance="?attr/appCardTitleAppearance" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/captionInfo"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_info"
+                    android:padding="12dp"
                     android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:textColor="?attr/colorError"
+                    android:textColor="?attr/colorOnTertiaryContainer"
                     android:visibility="gone" />
 
                 <TextView
                     android:id="@+id/transcript"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:background="?attr/colorSurfaceContainerHighest"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_transcript"
                     android:gravity="bottom"
-                    android:minHeight="160dp"
-                    android:padding="12dp"
+                    android:hint="Les sous-titres apparaîtront ici…"
+                    android:minHeight="180dp"
+                    android:padding="20dp"
                     android:textIsSelectable="true" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/fullscreenButton"
-                        style="@style/Widget.Material3.Button.TonalButton"
+                        style="@style/Widget.Material3.Button"
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="8dp"
+                        android:layout_height="56dp"
                         android:layout_weight="1"
-                        android:text="Plein écran" />
+                        android:text="Plein écran"
+                        app:icon="@drawable/ic_fullscreen" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/shareButton"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Partager" />
+                        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:layout_marginStart="8dp"
+                        android:contentDescription="Partager"
+                        app:icon="@drawable/ic_share" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/clearButton"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Effacer" />
+                        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:layout_marginStart="8dp"
+                        android:contentDescription="Effacer"
+                        app:icon="@drawable/ic_delete" />
                 </LinearLayout>
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/overlaySwitch"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Micro utilisé (quand le micro déporté est coupé)"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+                    android:minHeight="56dp"
+                    android:text="Bulle flottante par-dessus les applis"
+                    android:textAppearance="?attr/textAppearanceBodyLarge" />
 
-                <RadioGroup
-                    android:id="@+id/sourceGroup"
+                <TextView
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <RadioButton
-                        android:id="@+id/sourcePhone"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Micro du téléphone" />
-
-                    <RadioButton
-                        android:id="@+id/sourceAid"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Micros de l'appareil auditif (ce que vous entendez)" />
-                </RadioGroup>
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Les sous-titres s'affichent aussi dans la notification (et sur l'écran verrouillé). Pour les activer d'un geste, ajoutez la tuile « Sous-titres » aux réglages rapides."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Langue"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+                    android:layout_marginTop="16dp"
+                    android:text="Micro utilisé (quand le micro déporté est coupé)"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="?attr/colorPrimary" />
+
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/sourceGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    app:selectionRequired="true"
+                    app:singleSelection="true">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/sourcePhone"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Téléphone" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/sourceAid"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Appareil auditif" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Langue parlée"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="?attr/colorPrimary" />
 
                 <Spinner
                     android:id="@+id/languageSpinner"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp" />
+                    android:layout_height="52dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/bg_field"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp" />
 
                 <com.google.android.material.materialswitch.MaterialSwitch
                     android:id="@+id/offlineSwitch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Hors connexion si possible (plus privé)" />
-
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/translateSwitch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Traduction en direct" />
-
-                <LinearLayout
-                    android:id="@+id/translateOptions"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Traduire en"
-                        android:textAppearance="?attr/textAppearanceLabelLarge" />
-
-                    <Spinner
-                        android:id="@+id/translateSpinner"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp" />
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/translationOnlySwitch"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Afficher seulement la traduction" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Traduction faite sur le téléphone (Google ML Kit). Chaque langue est téléchargée une fois (~30 Mo), ensuite ça marche sans Internet."
-                        android:textAppearance="?attr/textAppearanceBodySmall" />
-                </LinearLayout>
+                    android:minHeight="56dp"
+                    android:text="Hors connexion si possible"
+                    android:textAppearance="?attr/textAppearanceBodyLarge" />
 
                 <TextView
                     android:id="@+id/textSizeLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+                    android:layout_marginTop="16dp"
+                    android:textAppearance="?attr/textAppearanceTitleSmall" />
 
                 <com.google.android.material.slider.Slider
                     android:id="@+id/textSizeSlider"
@@ -374,11 +429,15 @@
                     android:layout_height="wrap_content"
                     android:stepSize="2"
                     android:valueFrom="16"
-                    android:valueTo="56" />
+                    android:valueTo="56"
+                    app:labelBehavior="gone"
+                    app:thumbHeight="44dp"
+                    app:trackHeight="16dp" />
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Apparence -->
+
         <com.google.android.material.card.MaterialCardView
             style="?attr/appCardStyle"
             android:layout_width="match_parent"
@@ -388,21 +447,437 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:animateLayoutChanges="true"
                 android:orientation="vertical"
                 android:padding="20dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Apparence"
-                    android:textAppearance="?attr/appCardTitleAppearance" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="14dp">
+
+                        <ImageView
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/shape_flower"
+                            app:tint="?attr/colorSecondaryContainer" />
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_translate"
+                            app:tint="?attr/colorOnSecondaryContainer" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Traduction"
+                        android:textAppearance="?attr/appCardTitleAppearance" />
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/translateSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:minHeight="56dp"
+                    android:text="Traduction en direct"
+                    android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+                <LinearLayout
+                    android:id="@+id/translateOptions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="8dp"
+                    android:text="Traduire en"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="?attr/colorPrimary" />
+
+                <Spinner
+                    android:id="@+id/translateSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/bg_field"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/translationOnlySwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minHeight="56dp"
+                    android:text="Afficher seulement la traduction"
+                    android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Traduction faite sur le téléphone (Google ML Kit). Chaque langue est téléchargée une fois (~30 Mo), ensuite ça marche sans Internet."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+
+        <com.google.android.material.card.MaterialCardView
+            style="?attr/appCardStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:animateLayoutChanges="true"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <LinearLayout
+                    android:id="@+id/remoteSettingsHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="14dp">
+
+                        <ImageView
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/shape_flower"
+                            app:tint="?attr/colorSecondaryContainer" />
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_mic"
+                            app:tint="?attr/colorOnSecondaryContainer" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Réglages du micro déporté"
+                        android:textAppearance="?attr/appCardTitleAppearance" />
+
+                    <ImageView
+                        android:id="@+id/remoteSettingsArrow"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:importantForAccessibility="no"
+                        android:rotation="0"
+                        android:src="@drawable/ic_expand"
+                        app:tint="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/remoteSettings"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:animateLayoutChanges="true"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Posez le téléphone au milieu de la table, écran vers le haut. Il capte les voix et les envoie, amplifiées, dans vos appareils (leurs micros restent actifs)."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
+                <TextView
+                    android:id="@+id/gainLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:textAppearance="?attr/textAppearanceTitleSmall" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/gainSlider"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:stepSize="1"
+                    android:valueFrom="0"
+                    android:valueTo="30"
+                    app:labelBehavior="gone"
+                    app:thumbHeight="44dp"
+                    app:trackHeight="16dp" />
+
+                <TextView
+                    android:id="@+id/clarityLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:textAppearance="?attr/textAppearanceTitleSmall" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/claritySlider"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:stepSize="1"
+                    android:valueFrom="0"
+                    android:valueTo="12"
+                    app:labelBehavior="gone"
+                    app:thumbHeight="44dp"
+                    app:trackHeight="16dp" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/noiseSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minHeight="56dp"
+                    android:text="Réduction du bruit de fond"
+                    android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Liaison avec l'appareil"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="?attr/colorPrimary" />
+
+                <Spinner
+                    android:id="@+id/linkSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/bg_field"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp" />
+
+                <TextView android:id="@+id/linkHelp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text=""
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Tampon audio"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="?attr/colorPrimary" />
+
+                <Spinner
+                    android:id="@+id/bufferSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/bg_field"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Type de micro"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="?attr/colorPrimary" />
+
+                <Spinner
+                    android:id="@+id/micSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/bg_field"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+
+        <com.google.android.material.card.MaterialCardView
+            style="?attr/appCardStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:animateLayoutChanges="true"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="14dp">
+
+                        <ImageView
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/shape_flower"
+                            app:tint="?attr/colorSecondaryContainer" />
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_bluetooth"
+                            app:tint="?attr/colorOnSecondaryContainer" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Appareil auditif"
+                        android:textAppearance="?attr/appCardTitleAppearance" />
+                </LinearLayout>
+
+                <Spinner
+                    android:id="@+id/deviceSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/bg_field"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp" />
+
+                <TextView android:id="@+id/deviceInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text=""
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/bluetoothButton"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Réglages Bluetooth"
+                    app:icon="@drawable/ic_bluetooth" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+
+        <com.google.android.material.card.MaterialCardView
+            style="?attr/appCardStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:animateLayoutChanges="true"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <LinearLayout
+                    android:id="@+id/appearanceSettingsHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="14dp">
+
+                        <ImageView
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/shape_flower"
+                            app:tint="?attr/colorSecondaryContainer" />
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_palette"
+                            app:tint="?attr/colorOnSecondaryContainer" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Apparence"
+                        android:textAppearance="?attr/appCardTitleAppearance" />
+
+                    <ImageView
+                        android:id="@+id/appearanceSettingsArrow"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:importantForAccessibility="no"
+                        android:rotation="0"
+                        android:src="@drawable/ic_expand"
+                        app:tint="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/appearanceSettings"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:animateLayoutChanges="true"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
                     android:text="Thème"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="?attr/colorPrimary" />
 
                 <com.google.android.material.chip.ChipGroup
                     android:id="@+id/themeChips"
@@ -416,7 +891,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="Mode"
-                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="?attr/colorPrimary" />
 
                 <com.google.android.material.chip.ChipGroup
                     android:id="@+id/nightChips"
@@ -424,10 +900,13 @@
                     android:layout_height="wrap_content"
                     app:selectionRequired="true"
                     app:singleSelection="true" />
+
+                </LinearLayout>
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Aide -->
+
         <com.google.android.material.card.MaterialCardView
             style="?attr/appCardStyle"
             android:layout_width="match_parent"
@@ -437,21 +916,71 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:animateLayoutChanges="true"
                 android:orientation="vertical"
                 android:padding="20dp">
 
-                <TextView
-                    android:textAppearance="?attr/appCardTitleAppearance"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:id="@+id/helpSettingsHeader"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Pourquoi cette application ?" />
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="14dp">
+
+                        <ImageView
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/shape_flower"
+                            app:tint="?attr/colorSecondaryContainer" />
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_warning"
+                            app:tint="?attr/colorOnSecondaryContainer" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Pourquoi cette application ?"
+                        android:textAppearance="?attr/appCardTitleAppearance" />
+
+                    <ImageView
+                        android:id="@+id/helpSettingsArrow"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:importantForAccessibility="no"
+                        android:rotation="0"
+                        android:src="@drawable/ic_expand"
+                        app:tint="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/helpSettings"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:animateLayoutChanges="true"
+                    android:orientation="vertical"
+                    android:visibility="gone">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Les fonctions « appareil auditif » d'Android ne s'activent qu'avec les appareils utilisant les protocoles ASHA ou Bluetooth LE Audio. Beaucoup d'appareils (dont la plupart des Phonak) se connectent en Bluetooth classique : Android les voit comme de simples écouteurs. Cette application fonctionne avec n'importe quelle sortie audio : elle fait elle-même la transcription et l'amplification."
-                    android:textAppearance="?attr/textAppearanceBodySmall" />
+                    android:text="Les fonctions « appareil auditif » d'Android ne s'activent qu'avec les protocoles ASHA ou Bluetooth LE Audio. Beaucoup d'appareils (dont la plupart des Phonak) se connectent comme un casque Bluetooth : Android ne les traite pas comme des appareils auditifs. Cette application fonctionne avec n'importe quelle sortie audio et fait elle-même transcription et amplification."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/liveTranscribeButton"
@@ -460,7 +989,11 @@
                     android:layout_height="wrap_content"
                     android:text="Ouvrir Transcription instantanée (Google)"
                     android:visibility="gone" />
+
+                </LinearLayout>
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
     </LinearLayout>
 </ScrollView>

@@ -89,6 +89,8 @@ class HearingService : Service() {
     private val translator = CaptionTranslator()
     private lateinit var overlay: CaptionOverlay
     private var lastNotify = 0L
+    /** Le micro de l'appareil auditif n'a pas pu être ouvert : repli sur celui du téléphone. */
+    private var aidMicFailed = false
     private val notifyRunnable = Runnable { updateNotification() }
 
     private val deviceCallback = object : AudioDeviceCallback() {
@@ -138,6 +140,7 @@ class HearingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_APPLY -> {
+                aidMicFailed = false
                 remoteMic = intent.getBooleanExtra(EXTRA_REMOTE, false)
                 captions = intent.getBooleanExtra(EXTRA_CAPTIONS, false)
             }
@@ -179,7 +182,7 @@ class HearingService : Service() {
                 linkMode = prefs.linkMode,
                 bufferMode = prefs.bufferMode,
                 outputKey = prefs.outputKey.ifEmpty { null },
-                inputFromHearingAid = !remoteMic && captions && external && prefs.captionSource == "aid",
+                inputFromHearingAid = !remoteMic && captions && external && prefs.captionSource == "aid" && !aidMicFailed,
                 micMode = prefs.micMode
             )
         } else null
@@ -244,7 +247,14 @@ class HearingService : Service() {
 
     private fun onEngineError(message: String) {
         HearingState.status.value = message
+        val wasAidMic = engine.config?.inputFromHearingAid == true
         engine.stop()
+        if (wasAidMic && captions) {
+            // On garde les sous-titres, avec le micro du téléphone.
+            aidMicFailed = true
+            reapply()
+            return
+        }
         if (remoteMic) {
             remoteMic = false
             HearingState.remoteMicOn.value = false

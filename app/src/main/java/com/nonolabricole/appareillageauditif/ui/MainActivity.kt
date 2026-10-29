@@ -14,7 +14,7 @@ import android.provider.Settings
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
-import android.widget.RadioGroup
+import android.widget.ImageView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -32,7 +32,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.materialswitch.MaterialSwitch
-import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.slider.Slider
 import com.nonolabricole.appareillageauditif.HearingService
 import com.nonolabricole.appareillageauditif.HearingState
@@ -50,10 +51,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var am: AudioManager
 
     private lateinit var statusText: TextView
+    private lateinit var statusCard: View
+    private lateinit var deviceChip: Chip
+    private lateinit var remoteTile: HeroTile
+    private lateinit var captionsTile: HeroTile
     private lateinit var deviceSpinner: Spinner
     private lateinit var deviceInfo: TextView
     private lateinit var remoteSwitch: MaterialSwitch
-    private lateinit var levelMeter: LinearProgressIndicator
     private lateinit var gainLabel: TextView
     private lateinit var gainSlider: Slider
     private lateinit var clarityLabel: TextView
@@ -67,7 +71,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var captionsSwitch: MaterialSwitch
     private lateinit var captionInfo: TextView
     private lateinit var transcript: TextView
-    private lateinit var sourceGroup: RadioGroup
+    private lateinit var sourceGroup: MaterialButtonToggleGroup
     private lateinit var languageSpinner: Spinner
     private lateinit var offlineSwitch: MaterialSwitch
     private lateinit var textSizeLabel: TextView
@@ -150,10 +154,11 @@ class MainActivity : AppCompatActivity() {
         HearingState.display.value = prefs.captionDisplay()
 
         statusText = findViewById(R.id.statusText)
+        statusCard = findViewById(R.id.statusCard)
+        deviceChip = findViewById(R.id.deviceChip)
         deviceSpinner = findViewById(R.id.deviceSpinner)
         deviceInfo = findViewById(R.id.deviceInfo)
         remoteSwitch = findViewById(R.id.remoteSwitch)
-        levelMeter = findViewById(R.id.levelMeter)
         gainLabel = findViewById(R.id.gainLabel)
         gainSlider = findViewById(R.id.gainSlider)
         clarityLabel = findViewById(R.id.clarityLabel)
@@ -176,12 +181,71 @@ class MainActivity : AppCompatActivity() {
         translateSwitch = findViewById(R.id.translateSwitch)
         translateOptions = findViewById(R.id.translateOptions)
 
+        setupHeroTiles()
+        setupCollapsibles()
         setupDeviceSection()
         setupRemoteSection()
         setupCaptionSection()
         setupAppearanceSection()
         setupHelpSection()
         observeState()
+        if (savedInstanceState == null) playEntrance()
+    }
+
+    override fun onDestroy() {
+        if (::remoteTile.isInitialized) remoteTile.release()
+        if (::captionsTile.isInitialized) captionsTile.release()
+        super.onDestroy()
+    }
+
+    // ---- Grandes commandes et animations --------------------------------------------------
+
+    private fun setupHeroTiles() {
+        val essential = Appearance.isEssential(this)
+        fun tile(prefix: String, title: String): HeroTile {
+            val id = { name: String -> resources.getIdentifier(prefix + name, "id", packageName) }
+            val shape = findViewById<ImageView>(id("Shape"))
+            if (essential) shape.setImageResource(R.drawable.shape_circle)
+            return HeroTile(
+                findViewById(id("Tile")), shape, findViewById(id("Icon")), findViewById(id("State")),
+                onText = "Activé", offText = "Désactivé"
+            ).also { findViewById<MaterialCardView>(id("Tile")).contentDescription = title }
+        }
+        remoteTile = tile("remote", "Micro déporté")
+        captionsTile = tile("captions", "Sous-titres")
+        findViewById<View>(R.id.remoteTile).setOnClickListener { remoteSwitch.isChecked = !remoteSwitch.isChecked }
+        findViewById<View>(R.id.captionsTile).setOnClickListener { captionsSwitch.isChecked = !captionsSwitch.isChecked }
+        deviceChip.setOnClickListener { startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+    }
+
+    /** Sections repliables : la flèche tourne, le contenu s'ouvre en douceur. */
+    private fun setupCollapsibles() {
+        for (name in listOf("remoteSettings", "appearanceSettings", "helpSettings")) {
+            val content = findViewById<View>(resources.getIdentifier(name, "id", packageName))
+            val arrow = findViewById<View>(resources.getIdentifier(name + "Arrow", "id", packageName))
+            findViewById<View>(resources.getIdentifier(name + "Header", "id", packageName)).setOnClickListener {
+                val open = content.visibility != View.VISIBLE
+                content.visibility = if (open) View.VISIBLE else View.GONE
+                arrow.animate().rotation(if (open) 180f else 0f).setDuration(300)
+                    .setInterpolator(android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)).start()
+            }
+        }
+    }
+
+    /** Apparition des cartes l'une après l'autre. */
+    private fun playEntrance() {
+        val content = findViewById<android.view.ViewGroup>(R.id.content)
+        val offset = 32 * resources.displayMetrics.density
+        var delay = 0L
+        for (i in 0 until content.childCount) {
+            val child = content.getChildAt(i)
+            if (child.visibility != View.VISIBLE) continue
+            child.alpha = 0f
+            child.translationY = offset
+            child.animate().alpha(1f).translationY(0f).setStartDelay(delay).setDuration(450)
+                .setInterpolator(android.view.animation.PathInterpolator(0.05f, 0.7f, 0.1f, 1f)).start()
+            delay += 45
+        }
     }
 
     override fun onStart() {
@@ -225,6 +289,8 @@ class MainActivity : AppCompatActivity() {
         deviceSpinner.setSelection(if (index >= 0) index + 1 else 0, false)
         updatingUi = false
         updateDeviceInfo()
+        val current = devices.firstOrNull { it.key == prefs.outputKey } ?: devices.firstOrNull()
+        deviceChip.text = current?.name ?: "Aucun appareil connecté"
     }
 
     private fun updateDeviceInfo() {
@@ -239,6 +305,9 @@ class MainActivity : AppCompatActivity() {
                 "« ${selected.name} » est connecté en Bluetooth classique (cas des Phonak Marvel, Paradise, Lumity…). " +
                     "Android ne le considère pas comme un appareil auditif : cette application prend le relais. " +
                     "Pour le moins de décalage, gardez la liaison « Automatique » ou « Mode appel »."
+            selected.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ->
+                "« ${selected.name} » est vu comme un casque Bluetooth (profil appel). Android ne le considère pas " +
+                    "comme un appareil auditif : cette application passe par ce profil appel, qui a peu de décalage."
             else ->
                 "« ${selected.name} » (${selected.kind}) : liaison directe, faible décalage."
         }
@@ -351,7 +420,8 @@ class MainActivity : AppCompatActivity() {
         updateSliderLabels()
 
         sourceGroup.check(if (prefs.captionSource == "aid") R.id.sourceAid else R.id.sourcePhone)
-        sourceGroup.setOnCheckedChangeListener { _, checkedId ->
+        sourceGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
             prefs.captionSource = if (checkedId == R.id.sourceAid) "aid" else "phone"
             if (checkedId == R.id.sourceAid && Build.VERSION.SDK_INT < 33) {
                 Toast.makeText(this, "Nécessite Android 13 ou plus récent.", Toast.LENGTH_LONG).show()
@@ -498,6 +568,11 @@ class MainActivity : AppCompatActivity() {
                 ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED
             ) add(Manifest.permission.POST_NOTIFICATIONS)
+            // « Appareils à proximité » : nécessaire sur certains téléphones pour piloter le Bluetooth (mode appel).
+            if (Build.VERSION.SDK_INT >= 31 &&
+                ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) !=
+                PackageManager.PERMISSION_GRANTED
+            ) add(Manifest.permission.BLUETOOTH_CONNECT)
         }
         if (needed.isEmpty()) {
             action()
@@ -536,11 +611,15 @@ class MainActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     combine(HearingState.remoteMicOn, HearingState.captionsOn) { a, b -> a to b }
-                        .collect { syncSwitches() }
+                        .collect { (remote, captions) ->
+                            syncSwitches()
+                            remoteTile.setActive(remote)
+                            captionsTile.setActive(captions)
+                        }
                 }
                 launch {
                     combine(HearingState.level, HearingState.remoteMicOn) { l, on -> if (on) l else 0f }
-                        .collect { levelMeter.setProgressCompat((it * 100).toInt(), true) }
+                        .collect { remoteTile.setLevel(it) }
                 }
                 launch {
                     combine(HearingState.status, HearingState.outputBlocked) { s, blocked ->
@@ -551,15 +630,15 @@ class MainActivity : AppCompatActivity() {
                         }
                     }.collect {
                         statusText.text = it
-                        statusText.visibility = if (it.isEmpty()) View.GONE else View.VISIBLE
+                        statusCard.visibility = if (it.isEmpty()) View.GONE else View.VISIBLE
                     }
                 }
                 launch {
                     combine(HearingState.activeLink, HearingState.latencyMs) { link, ms -> link to ms }
                         .collect { (link, ms) ->
                             val text = buildString {
-                                if (link.isNotEmpty()) append("Liaison : ").append(link)
-                                if (ms > 0) append("\nDécalage estimé : ≈ ").append(ms).append(" ms")
+                                if (link.isNotEmpty()) append(link)
+                                if (ms > 0) append(if (isEmpty()) "" else "  ·  ").append("≈ ").append(ms).append(" ms")
                             }
                             linkText.text = text
                             linkText.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
