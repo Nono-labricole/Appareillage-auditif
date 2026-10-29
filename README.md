@@ -9,6 +9,10 @@ fonctions :
    il capte les voix, les nettoie, les amplifie et les envoie dans vos appareils. Les micros
    de vos appareils restent actifs, vous entendez donc les deux.
 
+L'objectif : **ne pas avoir à acheter de micro déporté du fabricant** (Roger, PartnerMic,
+ConnectClip…). Le smartphone, qu'on a toujours sur soi, fait ce travail, quelle que soit la
+marque du téléphone ou des appareils.
+
 Fonctionne sur Android 8.0 et plus récent, toutes marques de téléphone (testé pour le
 Nothing Phone (3a)).
 
@@ -84,8 +88,6 @@ Google). Si rien ne s'affiche, installez/mettez à jour l'application **Google**
 
 ## Conseils
 
-- Pour une meilleure qualité encore en réunion, Phonak vend des micros dédiés (Roger,
-  PartnerMic) à très faible latence ; cette application est une alternative gratuite.
 - La batterie : le micro déporté consomme environ autant qu'un appel. Branchez le téléphone
   pour un long repas.
 - Le mode « Filtre anti-bruit du téléphone » (type de micro) utilise le traitement de
