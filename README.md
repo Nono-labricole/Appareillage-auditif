@@ -13,7 +13,7 @@ L'objectif : **ne pas avoir à acheter de micro déporté du fabricant** (Roger,
 ConnectClip…). Le smartphone, qu'on a toujours sur soi, fait ce travail, quelle que soit la
 marque du téléphone ou des appareils.
 
-Fonctionne sur Android 8.0 et plus récent, toutes marques de téléphone (testé pour le
+Fonctionne sur Android 8.0 et plus récent, toutes marques de téléphone (conçu en pensant au
 Nothing Phone (3a)).
 
 ## Pourquoi le « mode appareil auditif » d'Android ne marche pas avec un Phonak ?
