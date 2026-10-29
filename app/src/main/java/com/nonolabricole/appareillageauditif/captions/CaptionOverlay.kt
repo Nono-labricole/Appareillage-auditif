@@ -46,7 +46,7 @@ class CaptionOverlay(private val context: Context, private val onClose: () -> Un
         val dp = context.resources.displayMetrics.density
         val essential = prefs.theme == "essential"
 
-        val text = TextView(context).apply {
+        val captionText = TextView(context).apply {
             setTextColor(0xFFFFFFFF.toInt())
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
             text = "Sous-titres prêts…"
@@ -54,7 +54,7 @@ class CaptionOverlay(private val context: Context, private val onClose: () -> Un
         // Hauteur fixe de quelques lignes, toujours défilée vers la fin (texte le plus récent).
         val scrollView = ScrollView(context).apply {
             isVerticalScrollBarEnabled = false
-            addView(text)
+            addView(captionText)
         }
         val close = TextView(context).apply {
             text = "✕"
@@ -85,7 +85,7 @@ class CaptionOverlay(private val context: Context, private val onClose: () -> Un
                 if (essential) setStroke((1 * dp).toInt(), 0xFF2A2A2A.toInt())
             }
             addView(top)
-            addView(scrollView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, text.lineHeight * COMPACT_LINES))
+            addView(scrollView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, captionText.lineHeight * COMPACT_LINES))
         }
         val frame = FrameLayout(context).apply { addView(box) }
 
@@ -130,7 +130,7 @@ class CaptionOverlay(private val context: Context, private val onClose: () -> Un
                     else {
                         expanded = !expanded
                         scrollView.layoutParams = scrollView.layoutParams.apply {
-                            height = text.lineHeight * if (expanded) EXPANDED_LINES else COMPACT_LINES
+                            height = captionText.lineHeight * if (expanded) EXPANDED_LINES else COMPACT_LINES
                         }
                         scrollToEnd()
                     }
@@ -144,7 +144,7 @@ class CaptionOverlay(private val context: Context, private val onClose: () -> Un
         return try {
             wm.addView(frame, lp)
             root = frame
-            textView = text
+            textView = captionText
             scroll = scrollView
             params = lp
             true
