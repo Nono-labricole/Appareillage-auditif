@@ -95,6 +95,25 @@ coupée pour que le son ne parte jamais dans le haut-parleur du téléphone.
   réseau). Si la langue n'est pas téléchargée, l'application passe en ligne et propose le
   téléchargement.
 
+**Voir les sous-titres partout, sans ouvrir l'application** :
+
+- **Notification** : la dernière phrase s'affiche dans la notification (dépliez-la pour
+  les phrases précédentes), y compris sur l'**écran verrouillé**. Boutons : *Pause
+  sous-titres*, *Bulle*, *Arrêter*.
+- **Bulle flottante** : petite fenêtre de sous-titres par-dessus toutes les applications
+  (activez « Bulle flottante » ; Android demande d'autoriser « Affichage par-dessus les
+  autres applis » la première fois). Glissez-la pour la déplacer, touchez-la pour
+  l'agrandir, ✕ pour la masquer.
+- **Tuile des réglages rapides** : déroulez le volet des notifications, touchez le crayon
+  et ajoutez la tuile **« Sous-titres »** ; un appui l'active ou la coupe.
+
+**Traduction en direct** : activez « Traduction en direct » et choisissez la langue. Chaque
+phrase est traduite sous l'original (ou à sa place avec « Afficher seulement la
+traduction »), partout : écran, plein écran, bulle et notification. La traduction se fait
+sur le téléphone (Google ML Kit) : chaque langue (~30 Mo) est téléchargée une seule fois,
+ensuite tout fonctionne sans Internet. La langue de départ est celle choisie pour les
+sous-titres.
+
 La reconnaissance vocale utilise le moteur installé sur le téléphone (en général celui de
 Google). Si rien ne s'affiche, installez/mettez à jour l'application **Google** ou
 **Services de reconnaissance vocale de Google** depuis le Play Store.

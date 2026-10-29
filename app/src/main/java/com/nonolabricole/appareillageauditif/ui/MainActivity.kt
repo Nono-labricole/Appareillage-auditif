@@ -11,9 +11,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.text.SpannableStringBuilder
-import android.text.Spanned
-import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -30,6 +27,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
+import com.google.android.material.color.MaterialColors
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -41,6 +39,8 @@ import com.nonolabricole.appareillageauditif.HearingState
 import com.nonolabricole.appareillageauditif.Prefs
 import com.nonolabricole.appareillageauditif.R
 import com.nonolabricole.appareillageauditif.audio.DeviceUtils
+import com.nonolabricole.appareillageauditif.captions.CaptionFormat
+import android.net.Uri
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -72,6 +72,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var offlineSwitch: MaterialSwitch
     private lateinit var textSizeLabel: TextView
     private lateinit var textSizeSlider: Slider
+    private lateinit var overlaySwitch: MaterialSwitch
+    private lateinit var translateSwitch: MaterialSwitch
+    private lateinit var translateOptions: View
 
     private var devices: List<DeviceUtils.OutputDevice> = emptyList()
     private var updatingUi = false
@@ -99,6 +102,12 @@ class MainActivity : AppCompatActivity() {
         "minimal" to "Minimal – le plus rapide (s'agrandit seul en cas de craquements)",
         "balanced" to "Équilibré",
         "stable" to "Stable – pour les téléphones lents"
+    )
+    private val translationTargets = listOf(
+        "en" to "English", "fr" to "Français", "es" to "Español", "de" to "Deutsch", "it" to "Italiano",
+        "pt" to "Português", "nl" to "Nederlands", "pl" to "Polski", "ro" to "Română", "ru" to "Русский",
+        "uk" to "Українська", "tr" to "Türkçe", "ar" to "العربية", "zh" to "中文", "ja" to "日本語",
+        "ko" to "한국어", "hi" to "हिन्दी", "vi" to "Tiếng Việt"
     )
     private val languages = listOf(
         "" to "Langue du téléphone",
@@ -138,6 +147,7 @@ class MainActivity : AppCompatActivity() {
         applySystemBarInsets(findViewById(R.id.root))
         am = getSystemService(AudioManager::class.java)
         HearingState.dsp.value = prefs.dspParams()
+        HearingState.display.value = prefs.captionDisplay()
 
         statusText = findViewById(R.id.statusText)
         deviceSpinner = findViewById(R.id.deviceSpinner)
@@ -162,6 +172,9 @@ class MainActivity : AppCompatActivity() {
         offlineSwitch = findViewById(R.id.offlineSwitch)
         textSizeLabel = findViewById(R.id.textSizeLabel)
         textSizeSlider = findViewById(R.id.textSizeSlider)
+        overlaySwitch = findViewById(R.id.overlaySwitch)
+        translateSwitch = findViewById(R.id.translateSwitch)
+        translateOptions = findViewById(R.id.translateOptions)
 
         setupDeviceSection()
         setupRemoteSection()
@@ -366,6 +379,55 @@ class MainActivity : AppCompatActivity() {
             reapplyIfRunning()
         }
 
+        overlaySwitch.isChecked = prefs.overlayEnabled
+        overlaySwitch.setOnCheckedChangeListener { _, checked ->
+            if (updatingUi) return@setOnCheckedChangeListener
+            if (checked && !Settings.canDrawOverlays(this)) {
+                updatingUi = true
+                overlaySwitch.isChecked = false
+                updatingUi = false
+                AlertDialog.Builder(this)
+                    .setTitle("Bulle de sous-titres")
+                    .setMessage(
+                        "Pour afficher les sous-titres par-dessus les autres applications, autorisez " +
+                            "« Affichage par-dessus les autres applis » pour Appareillage auditif, puis revenez ici."
+                    )
+                    .setPositiveButton("Autoriser") { _, _ ->
+                        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                    }
+                    .setNegativeButton("Annuler", null)
+                    .show()
+                return@setOnCheckedChangeListener
+            }
+            prefs.overlayEnabled = checked
+            if (checked && !captionsSwitch.isChecked) {
+                captionsSwitch.isChecked = true // déclenche applyService()
+            } else {
+                HearingService.refresh(this)
+            }
+        }
+
+        translateSwitch.isChecked = prefs.translationEnabled
+        translateOptions.visibility = if (prefs.translationEnabled) View.VISIBLE else View.GONE
+        translateSwitch.setOnCheckedChangeListener { _, checked ->
+            prefs.translationEnabled = checked
+            translateOptions.visibility = if (checked) View.VISIBLE else View.GONE
+            HearingState.display.value = prefs.captionDisplay()
+            HearingService.refresh(this)
+        }
+        setupChoice(findViewById(R.id.translateSpinner), translationTargets, prefs.translationTarget) {
+            prefs.translationTarget = it
+            HearingService.refresh(this)
+        }
+        findViewById<MaterialSwitch>(R.id.translationOnlySwitch).apply {
+            isChecked = prefs.translationOnly
+            setOnCheckedChangeListener { _, checked ->
+                prefs.translationOnly = checked
+                HearingState.display.value = prefs.captionDisplay()
+                HearingService.refresh(this@MainActivity)
+            }
+        }
+
         captionsSwitch.setOnCheckedChangeListener { _, _ ->
             if (updatingUi) return@setOnCheckedChangeListener
             applyService()
@@ -510,10 +572,23 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 launch {
-                    combine(HearingState.lines, HearingState.partial) { lines, partial -> lines to partial }
-                        .collect { (lines, partial) ->
-                            transcript.text = formatTranscript(lines.takeLast(8), partial, getColor(R.color.caption_partial))
+                    combine(
+                        HearingState.lines, HearingState.partial, HearingState.partialTranslation, HearingState.display
+                    ) { lines, partial, partialTr, display ->
+                        CaptionFormat.styled(
+                            lines.takeLast(8), partial, partialTr, display,
+                            getColor(R.color.caption_partial), MaterialColors.getColor(transcript, androidx.appcompat.R.attr.colorPrimary)
+                        )
+                    }.collect { transcript.text = it }
+                }
+                launch {
+                    HearingState.overlayOn.collect { on ->
+                        if (on != overlaySwitch.isChecked && Settings.canDrawOverlays(this@MainActivity)) {
+                            updatingUi = true
+                            overlaySwitch.isChecked = prefs.overlayEnabled
+                            updatingUi = false
                         }
+                    }
                 }
             }
         }
@@ -534,16 +609,5 @@ class MainActivity : AppCompatActivity() {
         }
 
         const val LIVE_TRANSCRIBE_PACKAGE = "com.google.audio.hearing.visualization.accessibility.scribe"
-
-        fun formatTranscript(lines: List<String>, partial: String, partialColor: Int): CharSequence {
-            val sb = SpannableStringBuilder(lines.joinToString("\n"))
-            if (partial.isNotBlank()) {
-                if (sb.isNotEmpty()) sb.append("\n")
-                val start = sb.length
-                sb.append(partial)
-                sb.setSpan(ForegroundColorSpan(partialColor), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            }
-            return sb
-        }
     }
 }

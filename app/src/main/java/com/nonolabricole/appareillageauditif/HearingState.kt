@@ -20,22 +20,52 @@ object HearingState {
     val activeLink = MutableStateFlow("")
     val captionInfo = MutableStateFlow("")
 
-    val lines = MutableStateFlow<List<String>>(emptyList())
+    val lines = MutableStateFlow<List<Caption>>(emptyList())
     val partial = MutableStateFlow("")
+    val partialTranslation = MutableStateFlow("")
+    /** Options d'affichage des sous-titres (traduction, etc.). */
+    val display = MutableStateFlow(CaptionDisplay())
+    /** Bulle flottante par-dessus les autres applications. */
+    val overlayOn = MutableStateFlow(false)
 
     val dsp = MutableStateFlow(DspParams())
 
-    fun addLine(text: String) {
-        lines.value = (lines.value + text).takeLast(MAX_LINES)
+    private var nextId = 0L
+
+    @Synchronized
+    fun addLine(text: String): Long {
+        val id = nextId++
+        lines.value = (lines.value + Caption(id, text)).takeLast(MAX_LINES)
+        return id
+    }
+
+    @Synchronized
+    fun setTranslation(id: Long, translation: String) {
+        lines.value = lines.value.map { if (it.id == id) it.copy(translation = translation) else it }
     }
 
     fun clearTranscript() {
         lines.value = emptyList()
         partial.value = ""
+        partialTranslation.value = ""
     }
 
-    fun transcriptText(): String =
-        (lines.value + partial.value).filter { it.isNotBlank() }.joinToString("\n")
+    fun transcriptText(): String = buildString {
+        for (c in lines.value) {
+            appendLine(c.text)
+            if (!c.translation.isNullOrBlank()) appendLine("→ " + c.translation)
+        }
+        if (partial.value.isNotBlank()) appendLine(partial.value)
+    }.trim()
 
     private const val MAX_LINES = 500
 }
+
+data class Caption(val id: Long, val text: String, val translation: String? = null)
+
+data class CaptionDisplay(
+    /** Traduction active : afficher les traductions. */
+    val translate: Boolean = false,
+    /** N'afficher que la traduction (l'original reste visible tant qu'elle n'est pas prête). */
+    val translationOnly: Boolean = false
+)

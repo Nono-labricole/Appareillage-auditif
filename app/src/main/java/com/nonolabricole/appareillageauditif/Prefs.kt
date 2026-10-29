@@ -70,5 +70,29 @@ class Prefs(context: Context) {
         get() = sp.getString("nightMode", "system").orEmpty()
         set(v) = sp.edit().putString("nightMode", v).apply()
 
+    /** Bulle de sous-titres par-dessus les autres applications. */
+    var overlayEnabled: Boolean
+        get() = sp.getBoolean("overlayEnabled", false)
+        set(v) = sp.edit().putBoolean("overlayEnabled", v).apply()
+
+    var overlayY: Int
+        get() = sp.getInt("overlayY", -1)
+        set(v) = sp.edit().putInt("overlayY", v).apply()
+
+    var translationEnabled: Boolean
+        get() = sp.getBoolean("translationEnabled", false)
+        set(v) = sp.edit().putBoolean("translationEnabled", v).apply()
+
+    /** Langue cible de la traduction (code ISO 639-1, ex. "en"). */
+    var translationTarget: String
+        get() = sp.getString("translationTarget", "en").orEmpty()
+        set(v) = sp.edit().putString("translationTarget", v).apply()
+
+    var translationOnly: Boolean
+        get() = sp.getBoolean("translationOnly", false)
+        set(v) = sp.edit().putBoolean("translationOnly", v).apply()
+
+    fun captionDisplay() = CaptionDisplay(translationEnabled, translationEnabled && translationOnly)
+
     fun dspParams() = DspParams(gainDb, clarityDb, noiseReduction)
 }

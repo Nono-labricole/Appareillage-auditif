@@ -14,6 +14,7 @@ import com.nonolabricole.appareillageauditif.HearingService
 import com.nonolabricole.appareillageauditif.HearingState
 import com.nonolabricole.appareillageauditif.Prefs
 import com.nonolabricole.appareillageauditif.R
+import com.nonolabricole.appareillageauditif.captions.CaptionFormat
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -53,9 +54,16 @@ class CaptionsActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    combine(HearingState.lines, HearingState.partial) { l, p -> l to p }.collect { (lines, partial) ->
+                    combine(
+                        HearingState.lines, HearingState.partial, HearingState.partialTranslation, HearingState.display
+                    ) { lines, partial, partialTr, display ->
+                        CaptionFormat.styled(
+                            lines, partial, partialTr, display, 0xFF9E9E9E.toInt(),
+                            if (Appearance.isEssential(this@CaptionsActivity)) 0xFFFF5A5F.toInt() else 0xFF9CC0FF.toInt()
+                        )
+                    }.collect { text ->
                         val atBottom = !scroll.canScrollVertically(1)
-                        captions.text = MainActivity.formatTranscript(lines, partial, 0xFF9E9E9E.toInt())
+                        captions.text = text
                         if (atBottom) scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
                     }
                 }

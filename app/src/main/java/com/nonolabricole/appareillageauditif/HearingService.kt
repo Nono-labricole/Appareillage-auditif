@@ -15,11 +15,23 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.nonolabricole.appareillageauditif.audio.AudioEngine
+import com.nonolabricole.appareillageauditif.captions.CaptionFormat
+import com.nonolabricole.appareillageauditif.captions.CaptionOverlay
+import com.nonolabricole.appareillageauditif.captions.CaptionTranslator
 import com.nonolabricole.appareillageauditif.captions.TranscriptionEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import java.util.Locale
+import com.nonolabricole.appareillageauditif.ui.CaptionsTileService
 import com.nonolabricole.appareillageauditif.ui.MainActivity
 
 /**
@@ -31,9 +43,12 @@ class HearingService : Service() {
     companion object {
         private const val ACTION_APPLY = "apply"
         private const val ACTION_STOP = "stop"
+        private const val ACTION_TOGGLE_CAPTIONS = "toggle_captions"
+        private const val ACTION_TOGGLE_OVERLAY = "toggle_overlay"
         private const val EXTRA_REMOTE = "remote"
         private const val EXTRA_CAPTIONS = "captions"
-        private const val CHANNEL_ID = "hearing"
+        private const val OLD_CHANNEL_ID = "hearing"
+        private const val CHANNEL_ID = "live"
         private const val NOTIFICATION_ID = 1
 
         /** Active / désactive les fonctions ; relit aussi les réglages. */
@@ -46,6 +61,13 @@ class HearingService : Service() {
                 ContextCompat.startForegroundService(context, intent)
             } else if (HearingState.serviceRunning.value) {
                 context.startService(intent)
+            }
+        }
+
+        /** Relit les réglages d'affichage (traduction, bulle) sans changer ce qui est actif. */
+        fun refresh(context: Context) {
+            if (HearingState.serviceRunning.value) {
+                apply(context, HearingState.remoteMicOn.value, HearingState.captionsOn.value)
             }
         }
 
@@ -63,6 +85,11 @@ class HearingService : Service() {
     private lateinit var transcription: TranscriptionEngine
     private var remoteMic = false
     private var captions = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val translator = CaptionTranslator()
+    private lateinit var overlay: CaptionOverlay
+    private var lastNotify = 0L
+    private val notifyRunnable = Runnable { updateNotification() }
 
     private val deviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = onDevicesChanged()
@@ -87,18 +114,50 @@ class HearingService : Service() {
             onError = { msg -> main.post { onEngineError(msg) } }
         }
         transcription = TranscriptionEngine(this) { main.post { reapply() } }
+        overlay = CaptionOverlay(this) {
+            prefs.overlayEnabled = false
+            updateOverlay()
+        }
         createChannel()
         am.registerAudioDeviceCallback(deviceCallback, main)
         HearingState.serviceRunning.value = true
+
+        scope.launch {
+            HearingState.lines.collect { translator.translatePending() }
+        }
+        scope.launch {
+            HearingState.partial.collect { translator.translatePartial(it) }
+        }
+        scope.launch {
+            combine(
+                HearingState.lines, HearingState.partial, HearingState.partialTranslation, HearingState.display
+            ) { _, _, _, _ -> }.collect { refreshCaptionViews() }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_APPLY) {
-            remoteMic = intent.getBooleanExtra(EXTRA_REMOTE, false)
-            captions = intent.getBooleanExtra(EXTRA_CAPTIONS, false)
-        } else {
-            remoteMic = false
-            captions = false
+        when (intent?.action) {
+            ACTION_APPLY -> {
+                remoteMic = intent.getBooleanExtra(EXTRA_REMOTE, false)
+                captions = intent.getBooleanExtra(EXTRA_CAPTIONS, false)
+            }
+            // Actions de la notification : le service tourne déjà au premier plan.
+            ACTION_TOGGLE_CAPTIONS -> captions = !captions
+            ACTION_TOGGLE_OVERLAY -> {
+                if (!prefs.overlayEnabled && !overlay.canShow()) {
+                    startActivity(
+                        Intent(this, MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    )
+                } else {
+                    prefs.overlayEnabled = !prefs.overlayEnabled
+                    if (prefs.overlayEnabled) captions = true
+                }
+            }
+            else -> {
+                remoteMic = false
+                captions = false
+            }
         }
         if (!remoteMic && !captions) {
             shutdown()
@@ -135,9 +194,52 @@ class HearingService : Service() {
             HearingState.captionInfo.value =
                 "Sur ce téléphone, les sous-titres et le micro déporté se partagent le micro : les sous-titres peuvent s'interrompre."
         }
+        HearingState.display.value = prefs.captionDisplay()
+        if (captions && prefs.translationEnabled) {
+            translator.configure(prefs.language.ifEmpty { Locale.getDefault().toLanguageTag() }, prefs.translationTarget)
+        } else {
+            translator.close()
+        }
         HearingState.remoteMicOn.value = remoteMic
         HearingState.captionsOn.value = captions
+        CaptionsTileService.requestUpdate(this)
+        updateOverlay()
         updateNotification()
+    }
+
+    private fun updateOverlay() {
+        if (captions && prefs.overlayEnabled) {
+            if (!overlay.show()) {
+                prefs.overlayEnabled = false
+                HearingState.captionInfo.value =
+                    "Autorisez « Affichage par-dessus les autres applis » pour utiliser la bulle de sous-titres."
+            }
+            refreshCaptionViews()
+        } else {
+            overlay.hide()
+        }
+        HearingState.overlayOn.value = overlay.isShowing
+        scheduleNotification()
+    }
+
+    private fun refreshCaptionViews() {
+        if (overlay.isShowing) {
+            overlay.update(
+                CaptionFormat.styled(
+                    HearingState.lines.value.takeLast(30), HearingState.partial.value,
+                    HearingState.partialTranslation.value, HearingState.display.value,
+                    0xFFB0B0B0.toInt(), if (prefs.theme == "essential") 0xFFFF5A5F.toInt() else 0xFF9CC0FF.toInt()
+                )
+            )
+        }
+        if (captions) scheduleNotification()
+    }
+
+    /** Les mises à jour de notification sont limitées par Android : au plus ~1 par seconde. */
+    private fun scheduleNotification() {
+        main.removeCallbacks(notifyRunnable)
+        val wait = 1000 - (SystemClock.elapsedRealtime() - lastNotify)
+        if (wait <= 0) updateNotification() else main.postDelayed(notifyRunnable, wait)
     }
 
     private fun onEngineError(message: String) {
@@ -163,16 +265,28 @@ class HearingService : Service() {
 
     private fun shutdown() {
         main.removeCallbacks(restartEngine)
+        main.removeCallbacks(notifyRunnable)
+        remoteMic = false
+        captions = false
+        overlay.hide()
+        HearingState.overlayOn.value = false
+        translator.close()
         engine.stop()
         transcription.stop()
         HearingState.remoteMicOn.value = false
         HearingState.captionsOn.value = false
+        CaptionsTileService.requestUpdate(this)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onDestroy() {
         main.removeCallbacks(restartEngine)
+        main.removeCallbacks(notifyRunnable)
+        scope.cancel()
+        overlay.hide()
+        HearingState.overlayOn.value = false
+        translator.close()
         am.unregisterAudioDeviceCallback(deviceCallback)
         engine.stop()
         transcription.stop()
@@ -183,9 +297,17 @@ class HearingService : Service() {
     }
 
     private fun createChannel() {
-        val channel = NotificationChannel(CHANNEL_ID, "Écoute en cours", NotificationManager.IMPORTANCE_LOW)
-        channel.description = "Indique que le micro déporté ou les sous-titres sont actifs"
-        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        // Importance normale mais silencieuse : visible sur l'écran de verrouillage,
+        // contrairement aux notifications « silencieuses » que beaucoup de téléphones y masquent.
+        val channel = NotificationChannel(CHANNEL_ID, "Sous-titres et micro déporté", NotificationManager.IMPORTANCE_DEFAULT)
+        channel.description = "Affiche les sous-titres en direct et les commandes rapides"
+        channel.setSound(null, null)
+        channel.enableVibration(false)
+        channel.setShowBadge(false)
+        channel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(channel)
+        nm.deleteNotificationChannel(OLD_CHANNEL_ID)
     }
 
     private fun buildNotification(): Notification {
@@ -203,15 +325,46 @@ class HearingService : Service() {
             Intent(this, HearingService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val toggleCaptions = PendingIntent.getService(
+            this, 2,
+            Intent(this, HearingService::class.java).setAction(ACTION_TOGGLE_CAPTIONS),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val toggleOverlay = PendingIntent.getService(
+            this, 3,
+            Intent(this, HearingService::class.java).setAction(ACTION_TOGGLE_OVERLAY),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val status = parts.joinToString(" · ").ifEmpty { "En veille" }
+        val caption = if (captions) CaptionFormat.plainTail(
+            HearingState.lines.value, HearingState.partial.value, HearingState.partialTranslation.value,
+            HearingState.display.value, 4
+        ) else ""
+        lastNotify = SystemClock.elapsedRealtime()
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(parts.joinToString(" · ").ifEmpty { "En veille" })
-            .setOngoing(true)
             .setContentIntent(open)
-            .addAction(0, "Arrêter", stop)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setShowWhen(false)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build()
+            .addAction(0, if (captions) "Pause sous-titres" else "Sous-titres", toggleCaptions)
+            .addAction(0, if (overlay.isShowing) "Masquer la bulle" else "Bulle", toggleOverlay)
+            .addAction(0, "Arrêter", stop)
+        if (caption.isNotBlank()) {
+            // Dernière phrase en titre (lisible même replié), l'historique récent en dépliant.
+            builder.setContentTitle(caption.lineSequence().last())
+                .setContentText(status)
+                .setSubText(status)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(caption).setSummaryText(status))
+        } else {
+            builder.setContentTitle(getString(R.string.app_name))
+                .setContentText(if (captions) "Sous-titres actifs : en attente de parole…" else status)
+        }
+        return builder.build()
     }
 
     private fun startInForeground() {
@@ -220,6 +373,7 @@ class HearingService : Service() {
     }
 
     private fun updateNotification() {
+        if (!remoteMic && !captions) return
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification())
     }
 }

@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Bulle de sous-titres par-dessus les autres applications -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Nécessaire uniquement pour le mode appel Bluetooth (SCO) sur Android 11 et moins -->
     <uses-permission
         android:name="android.permission.BLUETOOTH"
@@ -42,6 +44,28 @@
             android:name=".ui.CaptionsActivity"
             android:exported="false"
             android:theme="@style/Theme.Appareillage.Fullscreen" />
+
+        <activity
+            android:name=".ui.ToggleActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <service
+            android:name=".ui.CaptionsTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_captions_tile"
+            android:label="Sous-titres"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
 
         <service
             android:name=".HearingService"

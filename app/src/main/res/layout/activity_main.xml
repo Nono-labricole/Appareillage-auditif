@@ -221,6 +221,18 @@
                     android:text="Sous-titres en direct"
                     android:textAppearance="?attr/appCardTitleAppearance" />
 
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/overlaySwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Bulle flottante par-dessus les autres applis" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Les sous-titres s'affichent aussi dans la notification (et sur l'écran verrouillé). Pour les activer d'un geste, ajoutez la tuile « Sous-titres » aux réglages rapides."
+                    android:textAppearance="?attr/textAppearanceBodySmall" />
+
                 <TextView
                     android:id="@+id/captionInfo"
                     android:layout_width="match_parent"
@@ -311,6 +323,43 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Hors connexion si possible (plus privé)" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/translateSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Traduction en direct" />
+
+                <LinearLayout
+                    android:id="@+id/translateOptions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Traduire en"
+                        android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                    <Spinner
+                        android:id="@+id/translateSpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/translationOnlySwitch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Afficher seulement la traduction" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Traduction faite sur le téléphone (Google ML Kit). Chaque langue est téléchargée une fois (~30 Mo), ensuite ça marche sans Internet."
+                        android:textAppearance="?attr/textAppearanceBodySmall" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/textSizeLabel"
