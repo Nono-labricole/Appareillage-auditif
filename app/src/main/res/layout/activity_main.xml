@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:background="?attr/colorErrorContainer"
+            android:padding="12dp"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnErrorContainer"
+            android:visibility="gone" />
+
+        <!-- Appareil auditif -->
+        <com.google.android.material.card.MaterialCardView style="@style/Card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    style="@style/CardTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Appareil auditif" />
+
+                <Spinner
+                    android:id="@+id/deviceSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp" />
+
+                <TextView
+                    android:id="@+id/deviceInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/bluetoothButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Réglages Bluetooth" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Micro déporté -->
+        <com.google.android.material.card.MaterialCardView style="@style/Card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/remoteSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Micro déporté"
+                    android:textAppearance="@style/CardTitle" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Posez le téléphone au milieu de la table, écran vers le haut. Il capte les voix et les envoie, amplifiées, dans vos appareils (leurs micros restent actifs)."
+                    android:textAppearance="?attr/textAppearanceBodySmall" />
+
+                <com.google.android.material.progressindicator.LinearProgressIndicator
+                    android:id="@+id/levelMeter"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:max="100"
+                    app:trackThickness="8dp" />
+
+                <TextView
+                    android:id="@+id/gainLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/gainSlider"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:stepSize="1"
+                    android:valueFrom="0"
+                    android:valueTo="30" />
+
+                <TextView
+                    android:id="@+id/clarityLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/claritySlider"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:stepSize="1"
+                    android:valueFrom="0"
+                    android:valueTo="12" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/noiseSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Réduction du bruit de fond" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Liaison Bluetooth"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <RadioGroup
+                    android:id="@+id/latencyGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <RadioButton
+                        android:id="@+id/latencyQuality"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Qualité (son riche, léger décalage)" />
+
+                    <RadioButton
+                        android:id="@+id/latencyLow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Faible latence (mode « appel », moins d'écho)" />
+                </RadioGroup>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Type de micro"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <Spinner
+                    android:id="@+id/micSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Sous-titres -->
+        <com.google.android.material.card.MaterialCardView style="@style/Card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/captionsSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Sous-titres en direct"
+                    android:textAppearance="@style/CardTitle" />
+
+                <TextView
+                    android:id="@+id/captionInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorError"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/transcript"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="?attr/colorSurfaceContainerHighest"
+                    android:gravity="bottom"
+                    android:minHeight="160dp"
+                    android:padding="12dp"
+                    android:textIsSelectable="true" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/fullscreenButton"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:text="Plein écran" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/shareButton"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Partager" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/clearButton"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Effacer" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Micro utilisé (quand le micro déporté est coupé)"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <RadioGroup
+                    android:id="@+id/sourceGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <RadioButton
+                        android:id="@+id/sourcePhone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Micro du téléphone" />
+
+                    <RadioButton
+                        android:id="@+id/sourceAid"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Micros de l'appareil auditif (ce que vous entendez)" />
+                </RadioGroup>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Langue"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <Spinner
+                    android:id="@+id/languageSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/offlineSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Hors connexion si possible (plus privé)" />
+
+                <TextView
+                    android:id="@+id/textSizeLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/textSizeSlider"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:stepSize="2"
+                    android:valueFrom="16"
+                    android:valueTo="56" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Aide -->
+        <com.google.android.material.card.MaterialCardView style="@style/Card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    style="@style/CardTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Pourquoi cette application ?" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Les fonctions « appareil auditif » d'Android ne s'activent qu'avec les appareils utilisant les protocoles ASHA ou Bluetooth LE Audio. Beaucoup d'appareils (dont la plupart des Phonak) se connectent en Bluetooth classique : Android les voit comme de simples écouteurs. Cette application fonctionne avec n'importe quelle sortie audio : elle fait elle-même la transcription et l'amplification."
+                    android:textAppearance="?attr/textAppearanceBodySmall" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/liveTranscribeButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Ouvrir Transcription instantanée (Google)"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
+</ScrollView>
