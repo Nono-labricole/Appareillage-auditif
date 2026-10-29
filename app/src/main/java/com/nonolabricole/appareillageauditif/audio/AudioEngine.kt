@@ -157,25 +157,27 @@ class AudioEngine(context: Context) {
         val fs = if (native in 16000..96000 && native % 16000 == 0) native else 48000
         val burst = (am.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toIntOrNull() ?: 0)
             .takeIf { it > 0 } ?: (fs / 200)
-        // Blocs de 2 à 10 ms selon le matériel.
-        val frames = burst.coerceIn(fs / 500, fs / 100)
+        // Blocs de 5 à 10 ms selon le matériel.
+        val frames = burst.coerceIn(fs / 200, fs / 100)
 
         val record = createRecord(cfg, fs, frames, comm)
         if (record == null) {
             fail("Impossible d'ouvrir le micro (peut-être utilisé par une autre application).")
             return
         }
-        // Tampon de sortie, en nombre de blocs ; agrandi automatiquement en cas de coupure.
-        val startBlocks = when (cfg.bufferMode) {
-            "stable" -> 8
-            "balanced" -> 4
-            else -> 2
+        // Tampon de sortie : jamais sous le minimum demandé par la liaison (le Bluetooth « appel »
+        // consomme le son par gros paquets), agrandi automatiquement en cas de coupure.
+        val minFrames = max(frames * 2, AudioTrack.getMinBufferSize(fs, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT) / 2)
+        val step = max(frames, minFrames / 4)
+        val startSize = minFrames + when (cfg.bufferMode) {
+            "stable" -> step * 4
+            "balanced" -> step * 2
+            else -> 0
         }
-        // Jamais plus de ~100 ms (ou 150 ms en mode stable).
-        val maxBlocks = max(startBlocks + 1, (if (cfg.bufferMode == "stable") fs * 3 / 20 else fs / 10) / frames)
-        var blocks = startBlocks
+        val maxSize = max(startSize + step * 4, fs * 3 / 20) // ~150 ms au plus
+        var bufferSize = startSize
 
-        val track = if (cfg.playback) createTrack(cfg, fs, frames * (maxBlocks + 2), comm) else null
+        val track = if (cfg.playback) createTrack(cfg, fs, maxSize + frames * 2, comm) else null
         if (cfg.playback && track == null) {
             record.release()
             fail("Impossible d'ouvrir la sortie audio.")
@@ -186,7 +188,10 @@ class AudioEngine(context: Context) {
         } else null
         if (cfg.playback) HearingState.activeLink.value = linkLabel(comm, cfg)
 
-        track?.let { setOutputBuffer(it, frames * blocks) }
+        track?.let { setOutputBuffer(it, bufferSize) }
+        // File d'attente avant la sortie : rien n'est jeté tant que le retard reste raisonnable.
+        val fifo = ShortFifo(fs)
+        val maxQueued = fs * 3 / 50 // 60 ms en attente au plus, au-delà on rattrape
 
         val processor = VoiceProcessor(fs)
         val decimator = Decimator(fs)
@@ -214,7 +219,7 @@ class AudioEngine(context: Context) {
             }
             if (track != null) {
                 // Pré-remplissage pour démarrer sans coupure.
-                val silence = ShortArray(frames * blocks)
+                val silence = ShortArray(bufferSize)
                 framesWritten += max(0, track.write(silence, 0, silence.size, AudioTrack.WRITE_NON_BLOCKING))
                 track.play()
             }
@@ -230,22 +235,6 @@ class AudioEngine(context: Context) {
 
                 val now = SystemClock.elapsedRealtime()
 
-                // Rattrapage : si le micro a pris de l'avance (après un ralentissement), on saute
-                // les blocs en retard pour la sortie (les sous-titres, eux, reçoivent tout).
-                if (track != null && now - lastTune > 100) {
-                    val backlog = inputBacklog(record, recordTs, framesRead, fs)
-                    if (backlog > frames * 2) {
-                        var toSkip = backlog / frames - 1
-                        while (toSkip-- > 0 && running) {
-                            val m = record.read(shorts, 0, frames)
-                            if (m <= 0) break
-                            framesRead += m
-                            transcriptionSink?.let { it(decimator.process(shorts, m)) }
-                        }
-                        continue
-                    }
-                }
-
                 for (i in 0 until n) floats[i] = shorts[i] / 32768f
                 val rms: Float
                 if (track != null) {
@@ -258,30 +247,32 @@ class AudioEngine(context: Context) {
                     for (i in 0 until n) {
                         shorts[i] = if (safe) (floats[i].coerceIn(-1f, 1f) * 32767f).toInt().toShort() else 0
                     }
-                    // Non bloquant : si la sortie est pleine on jette plutôt que d'accumuler du retard.
-                    val w = track.write(shorts, 0, n, AudioTrack.WRITE_NON_BLOCKING)
-                    if (w > 0) framesWritten += w
+                    fifo.push(shorts, n)
+                    framesWritten += fifo.writeTo(track)
+                    // Retard accumulé (ralentissement, horloges qui dérivent) : on saute le plus ancien.
+                    if (fifo.size > maxQueued) fifo.drop(fifo.size - frames * 2)
 
                     if (now - lastTune > 200) {
                         lastTune = now
                         val underruns = track.underrunCount
                         if (underruns > lastUnderruns) {
                             lastUnderrunTime = now
-                            if (blocks < maxBlocks) {
-                                blocks++
-                                setOutputBuffer(track, frames * blocks)
+                            if (bufferSize < maxSize) {
+                                bufferSize = min(maxSize, bufferSize + step)
+                                setOutputBuffer(track, bufferSize)
                             }
-                        } else if (blocks > startBlocks && now - lastUnderrunTime > 30_000) {
+                        } else if (bufferSize > startSize && now - lastUnderrunTime > 30_000) {
                             // Stable depuis 30 s : on retente un tampon plus petit.
-                            blocks--
-                            setOutputBuffer(track, frames * blocks)
+                            bufferSize = max(startSize, bufferSize - step)
+                            setOutputBuffer(track, bufferSize)
                             lastUnderrunTime = now
                         }
                         lastUnderruns = underruns
                     }
                     if (now - lastLatency > 500) {
                         lastLatency = now
-                        val l = estimateLatencyMs(record, recordTs, framesRead, track, trackTs, framesWritten, fs)
+                        val base = estimateLatencyMs(record, recordTs, framesRead, track, trackTs, framesWritten, fs)
+                        val l = if (base > 0) base + fifo.size * 1000f / fs else -1f
                         if (l > 0) {
                             latencyAvg = if (latencyAvg < 0) l else latencyAvg * 0.7f + l * 0.3f
                             HearingState.latencyMs.value = latencyAvg.toInt()
@@ -317,13 +308,6 @@ class AudioEngine(context: Context) {
 
     private fun setOutputBuffer(track: AudioTrack, sizeFrames: Int) {
         runCatching { track.setBufferSizeInFrames(sizeFrames) }
-    }
-
-    /** Nombre d'images captées par le micro mais pas encore lues. */
-    private fun inputBacklog(record: AudioRecord, ts: AudioTimestamp, framesRead: Long, fs: Int): Int {
-        if (record.getTimestamp(ts, AudioTimestamp.TIMEBASE_MONOTONIC) != AudioRecord.SUCCESS) return 0
-        val captured = ts.framePosition + (System.nanoTime() - ts.nanoTime) * fs / 1_000_000_000L
-        return (captured - framesRead).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
     }
 
     /**
@@ -520,5 +504,49 @@ class AudioEngine(context: Context) {
 
     private companion object {
         const val TAG = "AudioEngine"
+    }
+}
+
+/** File circulaire d'échantillons entre le traitement et la sortie audio. */
+private class ShortFifo(capacity: Int) {
+    private val buf = ShortArray(capacity)
+    private var head = 0
+    var size = 0
+        private set
+
+    fun push(src: ShortArray, n: Int) {
+        var count = n
+        var offset = 0
+        if (count > buf.size) {
+            offset = count - buf.size
+            count = buf.size
+        }
+        if (size + count > buf.size) drop(size + count - buf.size)
+        var tail = (head + size) % buf.size
+        for (i in 0 until count) {
+            buf[tail] = src[offset + i]
+            if (++tail == buf.size) tail = 0
+        }
+        size += count
+    }
+
+    fun drop(n: Int) {
+        val k = min(n, size)
+        head = (head + k) % buf.size
+        size -= k
+    }
+
+    /** Écrit sans bloquer tout ce que la sortie accepte ; renvoie le nombre d'échantillons écrits. */
+    fun writeTo(track: AudioTrack): Int {
+        var total = 0
+        while (size > 0) {
+            val chunk = min(size, buf.size - head)
+            val written = track.write(buf, head, chunk, AudioTrack.WRITE_NON_BLOCKING)
+            if (written <= 0) break
+            drop(written)
+            total += written
+            if (written < chunk) break
+        }
+        return total
     }
 }

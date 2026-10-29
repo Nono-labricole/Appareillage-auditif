@@ -152,8 +152,9 @@ class VoiceProcessor(private val fs: Int) {
             noiseFloor = noiseFloor.coerceIn(1e-5f, 0.05f)
 
             val gateTarget = if (p.noiseReduction) {
-                val ratio = env / (noiseFloor * 3f)
-                if (ratio >= 1f) 1f else max(0.25f, ratio * ratio)
+                // Expanseur doux (-8 dB au plus) pour ne pas « hacher » la parole.
+                val ratio = env / (noiseFloor * 2f)
+                if (ratio >= 1f) 1f else max(0.4f, ratio)
             } else 1f
             gateGain = if (gateTarget > gateGain) gateAttack * gateGain + (1 - gateAttack) * gateTarget
             else gateRelease * gateGain + (1 - gateRelease) * gateTarget
