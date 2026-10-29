@@ -1,20 +1,105 @@
 <resources>
-    <style name="Theme.Appareillage" parent="Theme.Material3.DayNight">
-        <item name="colorPrimary">@color/brand</item>
+    <!-- Base Material 3 ; les palettes (Palette.*) ou les couleurs dynamiques s'y ajoutent. -->
+    <style name="Theme.Appareillage" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="appCardStyle">@style/Card.Material</item>
+        <item name="appCardTitleAppearance">@style/TextAppearance.App.CardTitle</item>
+        <item name="appHeaderAppearance">@style/TextAppearance.App.Header</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
+    <style name="Card.Material" parent="Widget.Material3.CardView.Filled">
+        <item name="cardCornerRadius">28dp</item>
+    </style>
+
+    <style name="TextAppearance.App.Header" parent="TextAppearance.Material3.HeadlineMedium" />
+
+    <style name="TextAppearance.App.CardTitle" parent="TextAppearance.Material3.TitleLarge" />
+
+    <!-- Essential : noir et blanc, accent rouge, typographie à points et monospace. -->
+    <style name="Theme.Appareillage.Essential" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/essential_accent</item>
+        <item name="colorOnPrimary">@color/essential_on_accent</item>
+        <item name="colorPrimaryContainer">@color/essential_accent</item>
+        <item name="colorOnPrimaryContainer">@color/essential_on_accent</item>
+        <item name="colorPrimaryInverse">@color/essential_accent</item>
+        <item name="colorSecondary">@color/essential_on_surface</item>
+        <item name="colorOnSecondary">@color/essential_bg</item>
+        <item name="colorSecondaryContainer">@color/essential_card2</item>
+        <item name="colorOnSecondaryContainer">@color/essential_on_surface</item>
+        <item name="colorTertiary">@color/essential_accent</item>
+        <item name="colorOnTertiary">@color/essential_on_accent</item>
+        <item name="colorTertiaryContainer">@color/essential_card2</item>
+        <item name="colorOnTertiaryContainer">@color/essential_on_surface</item>
+        <item name="colorError">@color/essential_accent</item>
+        <item name="colorOnError">@color/essential_on_accent</item>
+        <item name="colorErrorContainer">@color/essential_card2</item>
+        <item name="colorOnErrorContainer">@color/essential_accent</item>
+        <item name="android:colorBackground">@color/essential_bg</item>
+        <item name="android:windowBackground">@color/essential_bg</item>
+        <item name="colorOnBackground">@color/essential_on_surface</item>
+        <item name="colorSurface">@color/essential_bg</item>
+        <item name="colorOnSurface">@color/essential_on_surface</item>
+        <item name="colorSurfaceVariant">@color/essential_card2</item>
+        <item name="colorOnSurfaceVariant">@color/essential_muted</item>
+        <item name="colorSurfaceContainerLowest">@color/essential_card</item>
+        <item name="colorSurfaceContainerLow">@color/essential_card</item>
+        <item name="colorSurfaceContainer">@color/essential_card</item>
+        <item name="colorSurfaceContainerHigh">@color/essential_card2</item>
+        <item name="colorSurfaceContainerHighest">@color/essential_card2</item>
+        <item name="colorSurfaceBright">@color/essential_card</item>
+        <item name="colorSurfaceDim">@color/essential_bg</item>
+        <item name="colorOutline">@color/essential_muted</item>
+        <item name="colorOutlineVariant">@color/essential_outline</item>
+        <item name="textAppearanceLabelLarge">@style/TextAppearance.Essential.Label</item>
+        <item name="appCardStyle">@style/Card.Essential</item>
+        <item name="appCardTitleAppearance">@style/TextAppearance.Essential.CardTitle</item>
+        <item name="appHeaderAppearance">@style/TextAppearance.Essential.Header</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="Card.Essential" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardBackgroundColor">@color/essential_card</item>
+        <item name="strokeColor">@color/essential_outline</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <style name="TextAppearance.Essential.Header" parent="TextAppearance.Material3.HeadlineLarge">
+        <item name="fontFamily">@font/doto</item>
+        <item name="android:fontFamily">@font/doto</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.04</item>
+    </style>
+
+    <style name="TextAppearance.Essential.CardTitle" parent="TextAppearance.Material3.TitleMedium">
+        <item name="fontFamily">@font/space_mono</item>
+        <item name="android:fontFamily">@font/space_mono</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+    </style>
+
+    <style name="TextAppearance.Essential.Label" parent="TextAppearance.Material3.LabelLarge">
+        <item name="fontFamily">@font/space_mono</item>
+        <item name="android:fontFamily">@font/space_mono</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.06</item>
+    </style>
+
+    <!-- Sous-titres plein écran -->
     <style name="Theme.Appareillage.Fullscreen" parent="Theme.Material3.Dark.NoActionBar">
-        <item name="colorPrimary">@color/brand_dark</item>
+        <item name="colorPrimary">#9CC0FF</item>
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/black</item>
     </style>
 
-    <style name="Card" parent="Widget.Material3.CardView.Elevated">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginBottom">16dp</item>
+    <style name="Theme.Appareillage.Fullscreen.Essential">
+        <item name="colorPrimary">@color/essential_accent</item>
+        <item name="colorOnPrimary">@color/essential_on_accent</item>
+        <item name="colorSecondaryContainer">#1E1E1E</item>
+        <item name="colorOnSecondaryContainer">#FFFFFF</item>
+        <item name="textAppearanceLabelLarge">@style/TextAppearance.Essential.Label</item>
     </style>
-
-    <style name="CardTitle" parent="TextAppearance.Material3.TitleLarge" />
 </resources>

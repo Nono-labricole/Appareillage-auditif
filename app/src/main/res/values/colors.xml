@@ -1,6 +1,14 @@
 <resources>
-    <color name="brand">#1B6EF3</color>
-    <color name="brand_dark">#9CC0FF</color>
     <color name="caption_partial">#8A8A8A</color>
     <color name="launcher_bg">#1B6EF3</color>
+
+    <!-- Thème Essential (inspiré de l'interface Nothing) -->
+    <color name="essential_accent">#D71921</color>
+    <color name="essential_on_accent">#FFFFFF</color>
+    <color name="essential_bg">#F2F2F2</color>
+    <color name="essential_card">#FFFFFF</color>
+    <color name="essential_card2">#E6E6E6</color>
+    <color name="essential_outline">#D6D6D6</color>
+    <color name="essential_on_surface">#000000</color>
+    <color name="essential_muted">#6B6B6B</color>
 </resources>

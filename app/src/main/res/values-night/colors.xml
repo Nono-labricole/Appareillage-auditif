@@ -1,4 +1,10 @@
 <resources>
-    <color name="brand">#9CC0FF</color>
     <color name="caption_partial">#9E9E9E</color>
+
+    <color name="essential_bg">#000000</color>
+    <color name="essential_card">#111111</color>
+    <color name="essential_card2">#1E1E1E</color>
+    <color name="essential_outline">#2A2A2A</color>
+    <color name="essential_on_surface">#FFFFFF</color>
+    <color name="essential_muted">#9A9A9A</color>
 </resources>

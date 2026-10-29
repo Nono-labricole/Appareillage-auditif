@@ -99,6 +99,20 @@ La reconnaissance vocale utilise le moteur installé sur le téléphone (en gén
 Google). Si rien ne s'affiche, installez/mettez à jour l'application **Google** ou
 **Services de reconnaissance vocale de Google** depuis le Play Store.
 
+## Apparence
+
+Carte **Apparence** en bas de l'écran :
+
+- **Material You** (Android 12+) : reprend les couleurs de votre fond d'écran ;
+- **Océan**, **Forêt**, **Lavande**, **Corail** : palettes Material 3 complètes ;
+- **Essential** : inspiré de l'interface Nothing – noir et blanc, accent rouge,
+  titres en police à points, libellés en monospace, cartes à contour fin ;
+- **Mode** : Système, Clair ou Sombre (tous les thèmes existent dans les deux versions).
+
+Polices du thème Essential : [Doto](https://github.com/oliverlalan/Doto) et
+[Space Mono](https://github.com/googlefonts/spacemono), sous licence SIL Open Font License
+(voir `third_party/fonts/`).
+
 ## Conseils
 
 - La batterie : le micro déporté consomme environ autant qu'un appel. Branchez le téléphone

@@ -25,6 +25,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -126,9 +131,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        Appearance.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         prefs = Prefs(this)
+        applySystemBarInsets(findViewById(R.id.root))
         am = getSystemService(AudioManager::class.java)
         HearingState.dsp.value = prefs.dspParams()
 
@@ -159,6 +166,7 @@ class MainActivity : AppCompatActivity() {
         setupDeviceSection()
         setupRemoteSection()
         setupCaptionSection()
+        setupAppearanceSection()
         setupHelpSection()
         observeState()
     }
@@ -378,6 +386,35 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupAppearanceSection() {
+        fillChips(findViewById(R.id.themeChips), Appearance.availableThemes().map { it.key to it.label }, prefs.theme) {
+            prefs.theme = it
+            recreate()
+        }
+        fillChips(findViewById(R.id.nightChips), Appearance.nightModes, prefs.nightMode) {
+            prefs.nightMode = it
+            Appearance.applyNightMode(it)
+        }
+    }
+
+    private fun fillChips(group: ChipGroup, choices: List<Pair<String, String>>, current: String, onPick: (String) -> Unit) {
+        var selected = if (choices.any { it.first == current }) current else choices.first().first
+        val initial = selected
+        for ((key, label) in choices) {
+            val chip = layoutInflater.inflate(R.layout.item_chip, group, false) as Chip
+            chip.id = View.generateViewId()
+            chip.text = label
+            chip.isChecked = key == initial
+            chip.setOnCheckedChangeListener { _, checked ->
+                if (checked && key != selected) {
+                    selected = key
+                    onPick(key)
+                }
+            }
+            group.addView(chip)
+        }
+    }
+
     private fun setupHelpSection() {
         val liveTranscribe = packageManager.getLaunchIntentForPackage(LIVE_TRANSCRIBE_PACKAGE)
         val button = findViewById<View>(R.id.liveTranscribeButton)
@@ -483,6 +520,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** Évite que le contenu passe sous les barres système (affichage bord à bord). */
+        fun applySystemBarInsets(view: View) {
+            val start = view.paddingLeft
+            val top = view.paddingTop
+            val end = view.paddingRight
+            val bottom = view.paddingBottom
+            ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+                val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+                v.updatePadding(left = start + bars.left, top = top + bars.top, right = end + bars.right, bottom = bottom + bars.bottom)
+                insets
+            }
+        }
+
         const val LIVE_TRANSCRIBE_PACKAGE = "com.google.audio.hearing.visualization.accessibility.scribe"
 
         fun formatTranscript(lines: List<String>, partial: String, partialColor: Int): CharSequence {

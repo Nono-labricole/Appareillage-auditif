@@ -60,5 +60,15 @@ class Prefs(context: Context) {
         get() = sp.getFloat("textSize", 28f)
         set(v) = sp.edit().putFloat("textSize", v).apply()
 
+    /** "dynamic", "ocean", "forest", "lavender", "sunset" ou "essential". */
+    var theme: String
+        get() = sp.getString("theme", "dynamic").orEmpty()
+        set(v) = sp.edit().putString("theme", v).apply()
+
+    /** "system", "light" ou "dark". */
+    var nightMode: String
+        get() = sp.getString("nightMode", "system").orEmpty()
+        set(v) = sp.edit().putString("nightMode", v).apply()
+
     fun dspParams() = DspParams(gainDb, clarityDb, noiseReduction)
 }

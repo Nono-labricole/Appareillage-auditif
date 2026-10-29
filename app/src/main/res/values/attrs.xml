@@ -1,0 +1,6 @@
+<resources>
+    <!-- Styles qui changent selon le thème choisi (Material ou Essential). -->
+    <attr name="appCardStyle" format="reference" />
+    <attr name="appCardTitleAppearance" format="reference" />
+    <attr name="appHeaderAppearance" format="reference" />
+</resources>

@@ -23,8 +23,10 @@ class CaptionsActivity : AppCompatActivity() {
     private lateinit var prefs: Prefs
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (Appearance.isEssential(this)) setTheme(R.style.Theme_Appareillage_Fullscreen_Essential)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_captions)
+        MainActivity.applySystemBarInsets(findViewById(R.id.captionsRoot))
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         prefs = Prefs(this)
 
