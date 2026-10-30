@@ -8,6 +8,15 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
+    <!-- Bouton segmenté : l'option choisie est remplie, cochée et soulignée. -->
+    <style name="Widget.App.SegmentedButton" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="backgroundTint">@color/segmented_bg</item>
+        <item name="android:textColor">@color/segmented_fg</item>
+        <item name="iconTint">@color/segmented_fg</item>
+        <item name="strokeColor">@color/segmented_stroke</item>
+        <item name="android:minHeight">52dp</item>
+    </style>
+
     <style name="Card.Material" parent="Widget.Material3.CardView.Filled">
         <item name="cardCornerRadius">28dp</item>
     </style>

@@ -420,8 +420,11 @@ class MainActivity : AppCompatActivity() {
         updateSliderLabels()
 
         sourceGroup.check(if (prefs.captionSource == "aid") R.id.sourceAid else R.id.sourcePhone)
-        sourceGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+        updateSegmentIcons(sourceGroup)
+        sourceGroup.addOnButtonCheckedListener { group, checkedId, isChecked ->
+            updateSegmentIcons(group)
             if (!isChecked) return@addOnButtonCheckedListener
+            group.findViewById<View>(checkedId)?.let { bounce(it) }
             prefs.captionSource = if (checkedId == R.id.sourceAid) "aid" else "phone"
             if (checkedId == R.id.sourceAid && Build.VERSION.SDK_INT < 33) {
                 Toast.makeText(this, "Nécessite Android 13 ou plus récent.", Toast.LENGTH_LONG).show()
@@ -545,6 +548,21 @@ class MainActivity : AppCompatActivity() {
             }
             group.addView(chip)
         }
+    }
+
+    /** Coche sur l'option choisie d'un groupe de boutons segmentés. */
+    private fun updateSegmentIcons(group: MaterialButtonToggleGroup) {
+        for (i in 0 until group.childCount) {
+            val b = group.getChildAt(i) as? com.google.android.material.button.MaterialButton ?: continue
+            b.icon = if (b.isChecked) ContextCompat.getDrawable(this, R.drawable.ic_check) else null
+        }
+    }
+
+    private fun bounce(view: View) {
+        view.scaleX = 0.92f
+        view.scaleY = 0.92f
+        view.animate().scaleX(1f).scaleY(1f).setDuration(350)
+            .setInterpolator(android.view.animation.OvershootInterpolator(3f)).start()
     }
 
     private fun setupHelpSection() {
