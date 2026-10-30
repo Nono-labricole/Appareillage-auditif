@@ -40,6 +40,13 @@ class TranscriptionEngine(private val context: Context, private val onExternalAu
     var externalAudio = Build.VERSION.SDK_INT >= 33
         private set
 
+    /**
+     * Écoute continue en une seule session (Android 13+) : plus de coupure ni de redémarrage
+     * entre les phrases. Désactivée automatiquement si le moteur ne la gère pas.
+     */
+    private var segmented = Build.VERSION.SDK_INT >= 33
+    private var segmentedErrors = 0
+
     private var language = ""
     private var preferOffline = true
     private var consecutiveErrors = 0
@@ -54,6 +61,8 @@ class TranscriptionEngine(private val context: Context, private val onExternalAu
         this.preferOffline = preferOffline
         onDeviceFailed = false
         consecutiveErrors = 0
+        segmented = Build.VERSION.SDK_INT >= 33
+        segmentedErrors = 0
         running = true
         queue.clear()
         createRecognizer()
@@ -115,8 +124,9 @@ class TranscriptionEngine(private val context: Context, private val onExternalAu
         putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, language.ifEmpty { Locale.getDefault().toLanguageTag() })
         putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, preferOffline)
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+        // Valide une phrase dès une courte pause : le texte définitif (et sa traduction) arrive plus vite.
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 700L)
     }
 
     private fun listen() {
@@ -131,6 +141,8 @@ class TranscriptionEngine(private val context: Context, private val onExternalAu
             intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1)
             intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
             intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, 16000)
+            // La session dure tant que notre flux audio reste ouvert : écoute continue.
+            if (segmented) intent.putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_AUDIO_SOURCE)
             s.start()
         }
         try {
@@ -207,6 +219,12 @@ class TranscriptionEngine(private val context: Context, private val onExternalAu
             else -> { // ERROR_AUDIO, ERROR_CLIENT, …
                 consecutiveErrors++
                 when {
+                    externalAudio && segmented && ++segmentedErrors >= 2 -> {
+                        // Le moteur ne gère pas l'écoute continue : retour aux sessions phrase par phrase.
+                        segmented = false
+                        consecutiveErrors = 0
+                        scheduleRestart(300, recreate = true)
+                    }
                     externalAudio && consecutiveErrors >= 3 -> {
                         // Le moteur n'accepte pas l'audio fourni par l'application.
                         externalAudio = false
@@ -248,6 +266,20 @@ class TranscriptionEngine(private val context: Context, private val onExternalAu
                     HearingState.captionInfo.value = ""
                 }
             }
+        }
+
+        // Écoute continue : chaque phrase arrive ici sans que la session s'arrête.
+        override fun onSegmentResults(segmentResults: Bundle) {
+            val text = firstResult(segmentResults)
+            HearingState.partial.value = ""
+            if (text.isNotEmpty()) HearingState.addLine(text)
+            consecutiveErrors = 0
+            segmentedErrors = 0
+        }
+
+        override fun onEndOfSegmentedSession() {
+            commitPartial()
+            scheduleRestart(30)
         }
 
         override fun onResults(results: Bundle?) {

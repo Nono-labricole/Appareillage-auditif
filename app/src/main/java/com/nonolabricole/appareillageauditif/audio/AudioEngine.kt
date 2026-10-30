@@ -195,6 +195,7 @@ class AudioEngine(context: Context) {
 
         val processor = VoiceProcessor(fs)
         val decimator = Decimator(fs)
+        val speechAgc = SpeechAgc()
         val shorts = ShortArray(frames)
         val floats = FloatArray(frames)
         val recordTs = AudioTimestamp()
@@ -231,7 +232,7 @@ class AudioEngine(context: Context) {
                 }
                 if (n == 0) continue
                 framesRead += n
-                transcriptionSink?.let { it(decimator.process(shorts, n)) }
+                transcriptionSink?.let { it(speechAgc.process(decimator.process(shorts, n))) }
 
                 val now = SystemClock.elapsedRealtime()
 

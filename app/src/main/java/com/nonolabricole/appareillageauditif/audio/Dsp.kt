@@ -202,3 +202,36 @@ class Decimator(fs: Int) {
         return out.copyOf(k)
     }
 }
+
+/**
+ * Gain automatique pour la reconnaissance vocale (16 kHz) : remonte les voix lointaines
+ * jusqu'à +24 dB sans amplifier le silence ni saturer.
+ */
+class SpeechAgc(fs: Int = 16000) {
+    private var env = 0f
+    private var gain = 1f
+    private val attack = exp(-1.0 / (0.010 * fs)).toFloat()
+    private val release = exp(-1.0 / (0.400 * fs)).toFloat()
+    private val gainSmooth = exp(-1.0 / (0.150 * fs)).toFloat()
+
+    fun process(buf: ShortArray): ShortArray {
+        for (i in buf.indices) {
+            val x = buf[i] / 32768f
+            val a = abs(x)
+            env = if (a > env) attack * env + (1 - attack) * a else release * env + (1 - release) * a
+            // Sous ~-55 dBFS c'est du bruit de fond : pas de gain supplémentaire.
+            val target = if (env < 0.0018f) 1f else (TARGET / env).coerceIn(1f, MAX_GAIN)
+            gain = gainSmooth * gain + (1 - gainSmooth) * target
+            var y = x * gain
+            if (y > 0.9f) y = 0.9f + 0.1f * tanh((y - 0.9f) / 0.1f)
+            else if (y < -0.9f) y = -0.9f - 0.1f * tanh((-y - 0.9f) / 0.1f)
+            buf[i] = (y * 32767f).toInt().toShort()
+        }
+        return buf
+    }
+
+    private companion object {
+        const val TARGET = 0.18f   // ≈ -15 dBFS
+        const val MAX_GAIN = 16f   // +24 dB
+    }
+}
