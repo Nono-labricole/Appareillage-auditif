@@ -64,10 +64,27 @@ claude mcp add premiere -- node /chemin/vers/premiere-claude-bridge/mcp-server/i
 | Effets | `get_clip_effects`, `set_clip_effect_property` (valeur ou image clé : échelle, position, opacité…), `list_available_effects`, `add_effect`, `add_transition` |
 | Marqueurs | `add_marker`, `list_markers` |
 | Export | `find_export_presets`, `export_sequence` (direct ou Media Encoder), `export_frame` (PNG renvoyé à Claude pour qu'il **voie** l'image) |
+| Annulation | `undo` (une ou plusieurs actions), `redo`, `list_checkpoints`, `create_checkpoint`, `restore_checkpoint` |
 | Avancé | `execute_extendscript` : exécute n'importe quel code ExtendScript — couvre tout ce que l'API de Premiere permet |
 
 Les temps sont en secondes ; les pistes et clips sont indexés à partir de 0 (V1 = piste vidéo 0).
 Les noms d'effets/composants sont ceux de la langue de votre Premiere (ex. « Trajectoire » / « Motion »).
+
+## Annuler les erreurs de Claude
+
+Avant chaque action qui modifie le projet (import, insertion, coupe, effet, marqueur, script…), le plugin
+**enregistre le projet** et en garde une copie (« point de restauration ») dans `~/.premiere-claude-bridge/checkpoints/`.
+
+- *« Annule ce que tu viens de faire »* → `undo` : le projet est remis dans l'état d'avant la dernière action, puis rechargé dans Premiere.
+- *« Annule les 3 dernières actions »* → `undo` avec `steps: 3`.
+- *« Finalement remets-le »* → `redo`.
+- *« Reviens à l'état d'avant le montage de l'intro »* → `list_checkpoints` puis `restore_checkpoint` (lui-même annulable).
+
+Bon à savoir :
+- votre projet est donc **enregistré automatiquement** avant chaque modification faite par Claude ;
+- une annulation recharge le projet (quelques secondes sur un gros projet) : l'historique Ctrl+Z interne de Premiere repart de zéro, mais vos modifications manuelles non enregistrées sont d'abord sauvegardées dans un point de restauration, rien n'est perdu ;
+- les 30 derniers points sont conservés par projet (une copie du `.prproj`, sans les médias) ;
+- une nouvelle action après un `undo` efface les possibilités de `redo`, comme dans tout logiciel.
 
 ## Options
 
@@ -75,7 +92,9 @@ Variables d'environnement du serveur MCP (dans `"env"` de la config Claude) :
 
 - `PREMIERE_BRIDGE_DISABLE_SCRIPT=1` : retire l'outil `execute_extendscript` (si votre organisation ne veut pas d'exécution de code arbitraire).
 - `PREMIERE_BRIDGE_TIMEOUT_MS` : délai max d'une commande (défaut 120000).
-- `PREMIERE_BRIDGE_CONFIG` : autre emplacement pour `bridge.json`.
+- `PREMIERE_BRIDGE_CONFIG` : autre emplacement pour `bridge.json` (les points de restauration sont rangés à côté).
+- `PREMIERE_BRIDGE_AUTO_CHECKPOINT=0` : désactive les points de restauration automatiques (seuls `create_checkpoint` manuels restent).
+- `PREMIERE_BRIDGE_MAX_CHECKPOINTS` : nombre de points conservés par projet (défaut 30).
 
 Pour changer de port, modifiez `"port"` dans `~/.premiere-claude-bridge/bridge.json` puis cliquez sur **Redémarrer** dans le panneau.
 
@@ -83,7 +102,7 @@ Pour changer de port, modifiez `"port"` dans `~/.premiere-claude-bridge/bridge.j
 
 - Le panneau doit être ouvert dans Premiere pour que Claude puisse agir.
 - `razor`, `add_effect`, `add_transition`, `list_available_effects` et `export_frame` utilisent l'API « QE » de Premiere, non documentée : elles peuvent varier selon les versions.
-- L'API de scripting n'offre pas d'annulation programmée : utilisez Ctrl/Cmd+Z dans Premiere si besoin, et enregistrez avant les grosses opérations.
+- L'API de scripting de Premiere ne donne pas accès à son Ctrl+Z : l'annulation passe donc par les points de restauration (rechargement du projet).
 
 ## Dépannage
 

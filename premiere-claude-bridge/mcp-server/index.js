@@ -6,6 +6,7 @@
  */
 "use strict";
 
+const crypto = require("crypto");
 const http = require("http");
 const fs = require("fs");
 const os = require("os");
@@ -18,6 +19,16 @@ const CONFIG_FILE = process.env.PREMIERE_BRIDGE_CONFIG ||
   path.join(os.homedir(), ".premiere-claude-bridge", "bridge.json");
 const ALLOW_SCRIPT = process.env.PREMIERE_BRIDGE_DISABLE_SCRIPT !== "1";
 const CALL_TIMEOUT_MS = Number(process.env.PREMIERE_BRIDGE_TIMEOUT_MS || 120000);
+const AUTO_CHECKPOINT = process.env.PREMIERE_BRIDGE_AUTO_CHECKPOINT !== "0";
+const MAX_CHECKPOINTS = Math.max(1, Number(process.env.PREMIERE_BRIDGE_MAX_CHECKPOINTS || 30));
+const CHECKPOINT_ROOT = path.join(path.dirname(CONFIG_FILE), "checkpoints");
+
+// Outils qui modifient le projet : un point de restauration est créé juste avant.
+const MUTATING = new Set([
+  "import_files", "create_bin", "rename_item", "create_sequence", "create_sequence_from_clips", "set_in_out",
+  "insert_clip", "remove_clip", "move_clip", "set_clip_timing", "set_clip_enabled", "razor",
+  "set_clip_effect_property", "add_effect", "add_transition", "add_marker", "execute_extendscript",
+]);
 
 // ------------------------------------------------------------------ outils
 const S = (properties, required = []) => ({ type: "object", properties, required, additionalProperties: false });
@@ -115,6 +126,16 @@ const TOOLS = [
   })],
   ["save_project", "Enregistre le projet (ou 'Enregistrer sous' si path est fourni).", S({ path: { type: "string" } })],
   ["open_project", "Ouvre un fichier .prproj.", S({ path: { type: "string" } }, ["path"])],
+  ["undo", "Annule les dernières actions de Claude en restaurant le projet tel qu'il était avant (le projet est rechargé). " +
+    "Réversible avec redo.", S({ steps: { type: "integer", minimum: 1, description: "Nombre d'actions à annuler (défaut : 1)" } })],
+  ["redo", "Rétablit ce qui a été annulé par le dernier undo.", S({})],
+  ["list_checkpoints", "Liste les points de restauration du projet (du plus ancien au plus récent) et ce qui peut être rétabli.", S({})],
+  ["create_checkpoint", "Crée un point de restauration manuel avec un nom (utile avant une série de modifications).", S({
+    label: { type: "string" },
+  })],
+  ["restore_checkpoint", "Restaure un point de restauration précis (id fourni par list_checkpoints). Réversible avec undo.", S({
+    id: { type: "string" },
+  }, ["id"])],
 ];
 if (ALLOW_SCRIPT) {
   TOOLS.push(["execute_extendscript",
@@ -169,9 +190,164 @@ async function waitForFile(file, timeoutMs) {
   return false;
 }
 
-async function runTool(name, args) {
+// ------------------------------------------------------------------ points de restauration
+// Chaque point = copie du .prproj enregistrée juste avant une action.
+// history : états "avant action" (le plus récent à la fin). redo : piles { snapshot, undone } pour rétablir.
+async function host(tool, args) {
+  const r = await callBridge(tool, args || {});
+  if (!r.ok) throw new Error(r.error);
+  return r.result;
+}
+
+function stateFor(projectPath) {
+  const key = crypto.createHash("sha1").update(path.resolve(projectPath).toLowerCase()).digest("hex").slice(0, 12);
+  const dir = path.join(CHECKPOINT_ROOT, key);
+  const file = path.join(dir, "index.json");
+  let data = { projectPath, history: [], redo: [] };
+  try { data = { ...data, ...JSON.parse(fs.readFileSync(file, "utf8")), projectPath }; } catch (e) { /* nouveau projet */ }
+  return { dir, file, data };
+}
+
+function saveState(st) {
+  fs.mkdirSync(st.dir, { recursive: true });
+  fs.writeFileSync(st.file, JSON.stringify(st.data, null, 2));
+}
+
+function deleteCheckpointFile(st, cp) {
+  try { fs.unlinkSync(path.join(st.dir, cp.file)); } catch (e) { /* déjà supprimé */ }
+}
+
+function clearRedo(st) {
+  for (const r of st.data.redo) deleteCheckpointFile(st, r.snapshot);
+  // Les entrées "undone" ont été rendues à l'historique ou sont perdues : on ne garde que celles encore référencées.
+  const kept = new Set(st.data.history.map((c) => c.file));
+  for (const r of st.data.redo) for (const c of r.undone) if (!kept.has(c.file)) deleteCheckpointFile(st, c);
+  st.data.redo = [];
+}
+
+function prune(st) {
+  while (st.data.history.length > MAX_CHECKPOINTS) deleteCheckpointFile(st, st.data.history.shift());
+}
+
+// Enregistre le projet et en garde une copie.
+async function snapshot(label) {
+  const info = await host("checkpoint_prepare");
+  const st = stateFor(info.path);
+  fs.mkdirSync(st.dir, { recursive: true });
+  const id = Date.now().toString(36) + crypto.randomBytes(2).toString("hex");
+  const cp = { id, label, createdAt: new Date().toISOString(), file: id + ".prproj", activeSequenceId: info.activeSequenceId || null };
+  fs.copyFileSync(info.path, path.join(st.dir, cp.file));
+  return { st, cp };
+}
+
+async function restore(st, cp) {
+  const src = path.join(st.dir, cp.file);
+  if (!fs.existsSync(src)) throw new Error(`Fichier du point de restauration manquant : ${src}`);
+  await host("close_project");
+  try {
+    fs.copyFileSync(src, st.data.projectPath);
+  } finally {
+    await host("reopen_project", { path: st.data.projectPath, activeSequenceId: cp.activeSequenceId });
+  }
+}
+
+const describeCp = (c) => ({ id: c.id, label: c.label, createdAt: c.createdAt });
+const ok = (obj) => ({ content: [{ type: "text", text: JSON.stringify(obj, null, 2) }] });
+
+async function checkpointTool(name, args) {
+  if (name === "create_checkpoint") {
+    const { st, cp } = await snapshot(args.label || "Point manuel");
+    clearRedo(st); st.data.history.push(cp); prune(st); saveState(st);
+    return ok({ created: describeCp(cp) });
+  }
+
+  if (name === "list_checkpoints") {
+    const info = await host("get_project_info");
+    const st = stateFor(info.path);
+    return ok({
+      project: info.path,
+      checkpoints: st.data.history.map(describeCp),
+      redoAvailable: st.data.redo.length > 0 ? st.data.redo[st.data.redo.length - 1].undone.map((c) => c.label) : [],
+    });
+  }
+
+  if (name === "undo") {
+    const steps = Math.max(1, Number(args.steps || 1));
+    const { st, cp: current } = await snapshot("État avant annulation");
+    if (st.data.history.length < steps) {
+      deleteCheckpointFile(st, current);
+      throw new Error(`Impossible d'annuler ${steps} action(s) : seulement ${st.data.history.length} point(s) de restauration disponible(s).`);
+    }
+    const undone = st.data.history.splice(-steps);
+    st.data.redo.push({ snapshot: current, undone });
+    saveState(st);
+    await restore(st, undone[0]);
+    return ok({ restoredTo: describeCp(undone[0]), undoneActions: undone.map((c) => c.label), redoPossible: true });
+  }
+
+  if (name === "redo") {
+    const info = await host("get_project_info");
+    const st = stateFor(info.path);
+    const r = st.data.redo.pop();
+    if (!r) throw new Error("Rien à rétablir.");
+    st.data.history.push(...r.undone);
+    saveState(st);
+    await restore(st, r.snapshot);
+    deleteCheckpointFile(st, r.snapshot);
+    saveState(st);
+    return ok({ redoneActions: r.undone.map((c) => c.label) });
+  }
+
+  if (name === "restore_checkpoint") {
+    const info = await host("get_project_info");
+    const target = stateFor(info.path).data.history.find((c) => c.id === args.id);
+    if (!target) throw new Error(`Point de restauration introuvable : ${args.id}. Utilisez list_checkpoints.`);
+    const { st, cp } = await snapshot(`Avant restauration de « ${target.label} »`);
+    clearRedo(st); st.data.history.push(cp); prune(st); saveState(st);
+    await restore(st, target);
+    return ok({ restoredTo: describeCp(target), undoWith: "undo" });
+  }
+}
+
+const CHECKPOINT_TOOLS = new Set(["undo", "redo", "list_checkpoints", "create_checkpoint", "restore_checkpoint"]);
+
+function summarize(name, args) {
+  const s = JSON.stringify(args || {});
+  return `${name} ${s.length > 100 ? s.slice(0, 97) + "…" : s}`;
+}
+
+// Les appels sont sérialisés pour que chaque point de restauration corresponde exactement à une action.
+let lock = Promise.resolve();
+function runTool(name, args) {
+  const p = lock.then(() => runToolUnlocked(name, args));
+  lock = p.catch(() => {});
+  return p;
+}
+
+async function runToolUnlocked(name, args) {
   if (!TOOLS.some((t) => t[0] === name)) throw new Error(`Outil inconnu : ${name}`);
   args = { ...(args || {}) };
+
+  if (CHECKPOINT_TOOLS.has(name)) return checkpointTool(name, args);
+
+  let pre = null, warning = "";
+  if (AUTO_CHECKPOINT && MUTATING.has(name)) {
+    try { pre = await snapshot(summarize(name, args)); }
+    catch (e) { warning = `Attention : aucun point de restauration créé — ${e.message}`; }
+  }
+  const result = await runBridgeTool(name, args);
+  if (pre) {
+    if (result.isError) deleteCheckpointFile(pre.st, pre.cp);
+    else {
+      clearRedo(pre.st); pre.st.data.history.push(pre.cp); prune(pre.st); saveState(pre.st);
+      result.content.push({ type: "text", text: `Point de restauration ${pre.cp.id} créé : utilisez undo pour annuler cette action.` });
+    }
+  }
+  if (warning) result.content.push({ type: "text", text: warning });
+  return result;
+}
+
+async function runBridgeTool(name, args) {
 
   if (name === "export_frame" && !args.outputPath) {
     const dir = path.join(os.tmpdir(), "premiere-claude-bridge");
@@ -211,7 +387,8 @@ async function handle(msg) {
           capabilities: { tools: { listChanged: false } },
           serverInfo: SERVER_INFO,
           instructions: "Pilote Adobe Premiere Pro en local. Commencez par get_project_info puis get_sequence_info. " +
-            "Les temps sont en secondes. Les index de pistes/clips commencent à 0.",
+            "Les temps sont en secondes. Les index de pistes/clips commencent à 0. " +
+            "Chaque action qui modifie le projet crée un point de restauration : en cas d'erreur, utilisez undo (puis redo si besoin).",
         });
       }
       case "ping":

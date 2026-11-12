@@ -36,13 +36,19 @@ const seq = { name: "Seq 1", sequenceID: "s1", timebase: String(TICKS / 25), end
   getInPoint: () => "0", getOutPoint: () => "10", getSettings: () => ({}),
   markers: { createMarker(s) { const m = { name: "", comments: "", start: T(s), end: T(s), type: "Comment" }; markers.push(m); return m; },
     getFirstMarker: () => markers[0], getNextMarker: (m) => markers[markers.indexOf(m) + 1] } };
-const app = { version: "25.0", build: "1", path: "/nonexistent", project: { name: "Test.prproj", path: "/tmp/Test.prproj", rootItem: root,
-  activeSequence: seq, sequences: coll([seq], "numSequences"), openSequence() {}, save() {} } };
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "pcb-"));
+const projFile = path.join(tmp, "Test.prproj");
+fs.writeFileSync(projFile, "v1");
+const events = [];
+const app = { version: "25.0", build: "1", path: "/nonexistent",
+  openDocument(p) { events.push("open:" + fs.readFileSync(p, "utf8")); return true; },
+  project: { name: "Test.prproj", path: projFile, rootItem: root,
+  activeSequence: seq, sequences: coll([seq], "numSequences"), openSequence(id) { events.push("seq:" + id); }, save() {},
+  closeDocument() { events.push("close"); } } };
 
 const ctx = vm.createContext({ app, Time, ProjectItemType, File: function (p) { this.exists = true; }, Folder: function () { this.exists = false; } });
 vm.runInContext(fs.readFileSync(path.join(__dirname, "../extension/jsx/host.jsx"), "utf8"), ctx);
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "pcb-"));
 const cfgFile = path.join(tmp, "bridge.json");
 const token = "secret";
 
@@ -100,6 +106,39 @@ server.listen(0, "127.0.0.1", async () => {
 
     r = await call("execute_extendscript", { code: "app.project.name + ' / ' + app.version" });
     assert.strictEqual(JSON.parse(r.text), "Test.prproj / 25.0");
+
+    // --- annulation / rétablissement
+    const cpDir = () => { const d = path.join(tmp, "checkpoints"); return path.join(d, fs.readdirSync(d)[0]); };
+    let lc = JSON.parse((await call("list_checkpoints", {})).text);
+    assert.strictEqual(lc.checkpoints.length, 4, "insert x2, marker, script (pas l'insert échoué)");
+    fs.writeFileSync(projFile, "v2"); // le projet a évolué
+    r = await call("undo", {});
+    assert.ok(!r.isError, r.text);
+    assert.strictEqual(fs.readFileSync(projFile, "utf8"), "v1");
+    assert.deepStrictEqual(events.slice(-3), ["close", "open:v1", "seq:s1"]);
+    r = await call("redo", {});
+    assert.ok(!r.isError, r.text);
+    assert.strictEqual(fs.readFileSync(projFile, "utf8"), "v2");
+    r = await call("redo", {});
+    assert.ok(r.isError && /Rien à rétablir/.test(r.text));
+    r = await call("undo", { steps: 3 });
+    assert.ok(!r.isError, r.text);
+    assert.strictEqual(JSON.parse(r.text).undoneActions.length, 3);
+    r = await call("undo", { steps: 5 });
+    assert.ok(r.isError && /seulement 1/.test(r.text), r.text);
+    lc = JSON.parse((await call("list_checkpoints", {})).text);
+    assert.strictEqual(lc.checkpoints.length, 1);
+    assert.strictEqual(lc.redoAvailable.length, 3);
+    r = await call("add_marker", { seconds: 1 }); // une nouvelle action vide la pile de rétablissement
+    lc = JSON.parse((await call("list_checkpoints", {})).text);
+    assert.strictEqual(lc.redoAvailable.length, 0);
+    assert.strictEqual(lc.checkpoints.length, 2);
+    r = await call("restore_checkpoint", { id: lc.checkpoints[0].id });
+    assert.ok(!r.isError, r.text);
+    lc = JSON.parse((await call("list_checkpoints", {})).text);
+    assert.strictEqual(lc.checkpoints.length, 3);
+    const files = fs.readdirSync(cpDir()).filter((f) => f.endsWith(".prproj"));
+    assert.strictEqual(files.length, 3, "fichiers orphelins supprimés : " + files);
 
     fs.writeFileSync(cfgFile, JSON.stringify({ port: server.address().port, token: "mauvais" }));
     r = await call("ping", {});

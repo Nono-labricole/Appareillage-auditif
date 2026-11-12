@@ -607,6 +607,37 @@ var ClaudeBridge = (function () {
     return { opened: args.path };
   };
 
+  // ---- primitives utilisées par les points de restauration (gérés par le serveur MCP)
+  tools.checkpoint_prepare = function () {
+    var p = project();
+    if (!p.path) fail('Le projet doit avoir été enregistré au moins une fois.');
+    p.save();
+    var r = { path: p.path, name: p.name };
+    if (p.activeSequence) r.activeSequenceId = p.activeSequence.sequenceID;
+    return r;
+  };
+
+  tools.close_project = function () {
+    if (app.project && app.project.path) app.project.closeDocument(0, 0);
+    return { closed: true };
+  };
+
+  tools.reopen_project = function (args) {
+    if (!new File(args.path).exists) fail('Projet introuvable : ' + args.path);
+    app.openDocument(args.path, true, true, true, true);
+    var seqOpened = false;
+    if (args.activeSequenceId && app.project) {
+      try {
+        for (var i = 0; i < app.project.sequences.numSequences; i++) {
+          if (app.project.sequences[i].sequenceID === args.activeSequenceId) {
+            app.project.openSequence(args.activeSequenceId); seqOpened = true; break;
+          }
+        }
+      } catch (e) {}
+    }
+    return { reopened: args.path, sequenceOpened: seqOpened };
+  };
+
   tools.execute_extendscript = function (args) {
     if (!args.code) fail('"code" requis.');
     /* jshint evil:true */
