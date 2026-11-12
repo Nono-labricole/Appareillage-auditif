@@ -64,11 +64,44 @@ claude mcp add premiere -- node /chemin/vers/premiere-claude-bridge/mcp-server/i
 | Effets | `get_clip_effects`, `set_clip_effect_property` (valeur ou image clé : échelle, position, opacité…), `list_available_effects`, `add_effect`, `add_transition` |
 | Marqueurs | `add_marker`, `list_markers` |
 | Export | `find_export_presets`, `export_sequence` (direct ou Media Encoder), `export_frame` (PNG renvoyé à Claude pour qu'il **voie** l'image) |
+| Analyse | `analyze_rhythm`, `analyze_color`, `analyze_audio` (voir ci-dessous) |
 | Annulation | `undo` (une ou plusieurs actions), `redo`, `list_checkpoints`, `create_checkpoint`, `restore_checkpoint` |
 | Avancé | `execute_extendscript` : exécute n'importe quel code ExtendScript — couvre tout ce que l'API de Premiere permet |
 
 Les temps sont en secondes ; les pistes et clips sont indexés à partir de 0 (V1 = piste vidéo 0).
 Les noms d'effets/composants sont ceux de la langue de votre Premiere (ex. « Trajectoire » / « Motion »).
+
+## Analyse du montage
+
+Tout est calculé sur votre machine par le serveur MCP (aucun service en ligne, aucune dépendance).
+
+**Rythme — `analyze_rhythm`**
+Reconstitue les plans réellement visibles (piste vidéo la plus haute, raccords invisibles fusionnés) et donne :
+nombre de plans, durée moyenne et médiane, coupes par minute, cadence par tranche de 10 s, accélération ou ralentissement,
+plans flash (≤ 3 images), plans anormalement longs, trous noirs.
+Avec `withMusic` (et `musicTrackIndex` pour la piste musique) : tempo en BPM, % de coupes calées sur les temps,
+liste des coupes décalées avec leur écart en millisecondes.
+
+**Image — `analyze_color`**
+Exporte une image au milieu de chaque plan (ou réparties / à des instants donnés), avec l'étalonnage appliqué, et mesure :
+exposition (luminance moyenne, percentiles), contraste, hautes lumières brûlées, noirs bouchés, saturation,
+balance des blancs (dominante chaude/froide et verte/magenta, estimée sur les zones neutres).
+Signale les plans qui s'écartent du reste et les raccords où l'image change brusquement, et renvoie à Claude
+une **planche contact numérotée** pour qu'il voie les images.
+
+**Son — `analyze_audio`**
+Exporte le son en WAV temporaire et mesure : loudness intégrée (LUFS, norme EBU R128 / BS.1770), plage dynamique (LRA),
+crête, échantillons saturés, équilibre gauche/droite et corrélation de phase, courbe de niveau, silences, tempo.
+Compare à une cible (`web` -14 LUFS, `podcast` -16, `broadcast` -23, `cinema`) et indique le gain à appliquer.
+Avec `perTrack` : chaque piste est exportée seule (les autres sont rendues muettes puis remises en l'état)
+pour comparer voix / musique / ambiance dans le temps.
+
+L'analyse audio a besoin d'un préréglage d'export WAV (.epr). Il est cherché automatiquement parmi les préréglages de
+Premiere ; sinon créez-en un (Waveform Audio 48 kHz 16 bits) et indiquez son chemin à Claude (`presetPath`).
+
+Exemples de demandes : *« Analyse le rythme de mon montage et dis-moi où il traîne »*, *« Les coupes tombent-elles
+sur la musique ? »*, *« Vérifie que l'étalonnage est cohérent entre les plans »*, *« Mon mix est-il prêt pour YouTube,
+et la musique couvre-t-elle la voix ? »*.
 
 ## Annuler les erreurs de Claude
 
@@ -101,7 +134,8 @@ Pour changer de port, modifiez `"port"` dans `~/.premiere-claude-bridge/bridge.j
 ## Limites connues
 
 - Le panneau doit être ouvert dans Premiere pour que Claude puisse agir.
-- `razor`, `add_effect`, `add_transition`, `list_available_effects` et `export_frame` utilisent l'API « QE » de Premiere, non documentée : elles peuvent varier selon les versions.
+- `razor`, `add_effect`, `add_transition`, `list_available_effects`, `export_frame` et `analyze_color` utilisent l'API « QE » de Premiere, non documentée : elles peuvent varier selon les versions.
+- Les analyses donnent des mesures objectives (niveaux, durées, dominantes) ; le jugement artistique reste à Claude et à vous. La mesure de crête est une crête échantillon (pas un true peak suréchantillonné).
 - L'API de scripting de Premiere ne donne pas accès à son Ctrl+Z : l'annulation passe donc par les points de restauration (rechargement du projet).
 
 ## Dépannage

@@ -11,7 +11,7 @@ const { spawn } = require("child_process");
 
 const TICKS = 254016000000;
 class Time { constructor() { this.seconds = 0; } get ticks() { return String(Math.round(this.seconds * TICKS)); }
-  getFormatted() { const s = this.seconds; return `00:00:${String(Math.floor(s)).padStart(2, "0")}:00`; } }
+  getFormatted() { return "t=" + this.seconds; } }
 const T = (s) => { const t = new Time(); t.seconds = s; return t; };
 const coll = (arr, key = "numItems") => Object.assign(arr, { [key]: arr.length });
 const ProjectItemType = { CLIP: 1, BIN: 2, ROOT: 3, FILE: 4 };
@@ -46,7 +46,56 @@ const app = { version: "25.0", build: "1", path: "/nonexistent",
   activeSequence: seq, sequences: coll([seq], "numSequences"), openSequence(id) { events.push("seq:" + id); }, save() {},
   closeDocument() { events.push("close"); } } };
 
-const ctx = vm.createContext({ app, Time, ProjectItemType, File: function (p) { this.exists = true; }, Folder: function () { this.exists = false; } });
+// ---- 2e séquence pour les analyses : plans de 2 s, un plan flash, une coupe à contretemps, un raccord invisible, un plan orangé
+const png = require("./lib/png");
+const mkClip = (name, nodeId, start, end, inPoint = 0) => ({ name, start: T(start), end: T(end), inPoint: T(inPoint), outPoint: T(inPoint + end - start),
+  duration: T(end - start), projectItem: { nodeId }, isSelected: () => false, disabled: false, components: coll([]) });
+const v1 = [], cutsAt = [0, 2, 4, 4.04, 6, 8, 10, 12, 14.2, 16, 18, 20, 22, 24, 26, 28, 30];
+for (let i = 0; i < cutsAt.length - 1; i++) {
+  const a = cutsAt[i], b = cutsAt[i + 1];
+  if (a === 18) v1.push(mkClip("Suite.mp4", "same", 18, 20, 2)); // raccord invisible avec le plan précédent
+  else if (a === 16) v1.push(mkClip("Suite.mp4", "same", 16, 18, 0));
+  else v1.push(mkClip(`Plan${i}.mp4`, "c" + i, a, b));
+}
+const mkAudioTrack = (name) => { const t = { name, clips: coll([mkClip(name, name, 0, 30)]), _muted: false, isLocked: () => false };
+  t.isMuted = () => t._muted; t.setMute = (m) => { t._muted = !!m; }; return t; };
+const seq2 = { ...seq, name: "Seq Rythme", sequenceID: "s2", end: String(30 * TICKS),
+  videoTracks: coll([{ name: "V1", clips: coll(v1), isMuted: () => false, isLocked: () => false },
+    { name: "V2", clips: coll([mkClip("Titre.png", "t", 20.5, 21.5)]), isMuted: () => false, isLocked: () => false }], "numTracks"),
+  audioTracks: coll([mkAudioTrack("Voix"), mkAudioTrack("Musique")], "numTracks"),
+  exportAsMediaDirect(out) {
+    const sr = 48000, n = sr * 30, b = Buffer.alloc(44 + n * 4);
+    b.write("RIFF", 0); b.writeUInt32LE(36 + n * 4, 4); b.write("WAVE", 8); b.write("fmt ", 12); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20);
+    b.writeUInt16LE(2, 22); b.writeUInt32LE(sr, 24); b.writeUInt32LE(sr * 4, 28); b.writeUInt16LE(4, 32); b.writeUInt16LE(16, 34); b.write("data", 36); b.writeUInt32LE(n * 4, 40);
+    const voice = !this.audioTracks[0]._muted, music = !this.audioTracks[1]._muted;
+    let seed = 1; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    for (let i = 0; i < n; i++) {
+      const t = i / sr, ph = t % 0.5;
+      let v = 0;
+      if (music) v += 0.12 * Math.exp(-ph * 30) * rnd() + 0.05 * Math.sin(2 * Math.PI * 110 * t);
+      if (voice && t > 3 && t < 25) v += 0.3 * Math.sin(2 * Math.PI * 180 * t) * (0.6 + 0.4 * Math.sin(2 * Math.PI * 3 * t));
+      const x = Math.round(Math.max(-1, Math.min(1, v)) * 32767);
+      b.writeInt16LE(x, 44 + i * 4); b.writeInt16LE(x, 46 + i * 4);
+    }
+    fs.writeFileSync(out, b);
+    return "ok";
+  } };
+app.project.sequences.push(seq2); app.project.sequences.numSequences = 2;
+const openSeq = app.project.openSequence;
+app.project.openSequence = (id) => { openSeq(id); app.project.activeSequence = app.project.sequences.find((x) => x.sequenceID === id); };
+app.enableQE = () => {};
+const qe = { project: { getActiveSequence: () => ({
+  exportFramePNG(tc, base) {
+    const t = Number(tc.slice(2)), w = 64, h = 36, data = new Uint8Array(w * h * 3);
+    const orange = t > 12 && t < 14.2; // plan avec une forte dominante chaude
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const v = 30 + Math.round((200 * x) / w), o = (y * w + x) * 3;
+      data[o] = orange ? Math.min(255, v + 45) : v; data[o + 1] = v; data[o + 2] = orange ? Math.max(0, v - 45) : v;
+    }
+    fs.writeFileSync(base + ".png", png.encodePNG({ width: w, height: h, data }));
+  } }) } };
+
+const ctx = vm.createContext({ app, qe, Time, ProjectItemType, File: function (p) { this.exists = true; }, Folder: Object.assign(function () { this.exists = false; }, { myDocuments: { fsName: "/aucun" } }) });
 vm.runInContext(fs.readFileSync(path.join(__dirname, "../extension/jsx/host.jsx"), "utf8"), ctx);
 
 const cfgFile = path.join(tmp, "bridge.json");
@@ -139,6 +188,45 @@ server.listen(0, "127.0.0.1", async () => {
     assert.strictEqual(lc.checkpoints.length, 3);
     const files = fs.readdirSync(cpDir()).filter((f) => f.endsWith(".prproj"));
     assert.strictEqual(files.length, 3, "fichiers orphelins supprimés : " + files);
+
+    // --- analyses
+    const callFull = async (name, args) => (await rpc("tools/call", { name, arguments: args })).result;
+    let full = await callFull("analyze_rhythm", { sequenceName: "Seq Rythme", withMusic: true, musicTrackIndex: 1, presetPath: "/x/wav.epr" });
+    assert.ok(!full.isError, full.content[0].text);
+    const rh = JSON.parse(full.content[0].text);
+    assert.strictEqual(app.project.activeSequence.name, "Seq Rythme");
+    // 16 plans sur V1, -1 raccord invisible fusionné, +2 pour le titre en V2 qui coupe un plan en trois
+    assert.strictEqual(rh.shotCount, 17, JSON.stringify(rh.shots.map((x) => x.at)));
+    assert.strictEqual(rh.flashFrames.length, 1);
+    assert.strictEqual(rh.flashFrames[0].frames, 1);
+    assert.ok(Math.abs(rh.musicSync.bpm - 120) < 1.5, "bpm " + rh.musicSync.bpm);
+    assert.ok(rh.musicSync.offBeatCuts.some((c) => c.at === "0:14.2"), JSON.stringify(rh.musicSync));
+    assert.ok(seq2.audioTracks.every((t) => !t._muted), "les mutes doivent être restaurés");
+
+    full = await callFull("analyze_color", { sequenceName: "Seq Rythme" });
+    assert.ok(!full.isError, full.content[0].text);
+    const col = JSON.parse(full.content[0].text);
+    assert.strictEqual(col.framesAnalyzed, 17);
+    const warm = col.consistency.outliers.find((o) => o.differsFromRest.some((d) => d.startsWith("plus chaud")));
+    assert.ok(warm && warm.at === "0:13.1", JSON.stringify(col.consistency));
+    assert.ok(col.consistency.abruptChangesBetweenShots.length >= 2);
+    assert.strictEqual(full.content[1].type, "image");
+    const sheet = png.decodePNG(Buffer.from(full.content[1].data, "base64"));
+    assert.ok(sheet.width > 0 && sheet.height > 0);
+
+    full = await callFull("analyze_audio", { sequenceName: "Seq Rythme", perTrack: true, presetPath: "/x/wav.epr" });
+    assert.ok(!full.isError, full.content[0].text);
+    const au = JSON.parse(full.content[0].text);
+    assert.ok(isFinite(au.mix.integratedLUFS) && au.mix.integratedLUFS < -5 && au.mix.integratedLUFS > -40, String(au.mix.integratedLUFS));
+    assert.strictEqual(au.tracks.length, 2);
+    assert.ok(au.tracks[0].integratedLUFS > au.tracks[1].integratedLUFS, "la voix est plus forte que la musique");
+    assert.strictEqual(au.levelsOverTime[5]["A1 (Voix)"], "silence", JSON.stringify(au.levelsOverTime)); // la voix s'arrête à 25 s
+    assert.ok(Math.abs(au.tempo.bpm - 120) < 1.5, JSON.stringify(au.tempo));
+    assert.strictEqual(au.mix.stereo.correlation, 1);
+    assert.ok(au.targetCheck.gainNeededDB !== undefined);
+
+    full = await callFull("analyze_audio", { sequenceName: "Seq Rythme" });
+    assert.ok(full.isError && /préréglage/i.test(full.content[0].text), full.content[0].text);
 
     fs.writeFileSync(cfgFile, JSON.stringify({ port: server.address().port, token: "mauvais" }));
     r = await call("ping", {});

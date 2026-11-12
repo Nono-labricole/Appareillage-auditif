@@ -12,6 +12,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const readline = require("readline");
+const { createAnalyzers } = require("./lib/analyzers");
 
 const SERVER_INFO = { name: "premiere-claude-bridge", version: "1.0.0" };
 const SUPPORTED_PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -126,6 +127,35 @@ const TOOLS = [
   })],
   ["save_project", "Enregistre le projet (ou 'Enregistrer sous' si path est fourni).", S({ path: { type: "string" } })],
   ["open_project", "Ouvre un fichier .prproj.", S({ path: { type: "string" } }, ["path"])],
+  ["analyze_rhythm", "Analyse le rythme du montage : plans visibles, durée moyenne/médiane, coupes par minute, cadence par tranche de temps, " +
+    "accélérations, plans flash, plans très longs, trous noirs. Avec withMusic : détecte le tempo de la musique et mesure si les coupes tombent sur les temps.", S({
+    ...seqArgs,
+    windowSeconds: { type: "number", description: "Taille des tranches pour la cadence (défaut 10 s)" },
+    withMusic: { type: "boolean", description: "Analyser aussi le calage des coupes sur le tempo (export audio temporaire)" },
+    musicTrackIndex: { type: "integer", minimum: 0, description: "Piste audio de la musique (0 = A1). Défaut : mixage complet" },
+    presetPath: { type: "string", description: "Préréglage .epr WAV (sinon recherché automatiquement)" },
+  })],
+  ["analyze_color", "Analyse l'image : exporte des images de la séquence (une par plan par défaut), mesure exposition, contraste, " +
+    "hautes lumières brûlées, noirs bouchés, saturation et balance des blancs (dominante chaude/froide, verte/magenta), " +
+    "signale les plans incohérents et les raccords brusques, et renvoie une planche contact numérotée pour les voir.", S({
+    ...seqArgs,
+    mode: { type: "string", enum: ["shots", "uniform", "times"], description: "shots = milieu de chaque plan (défaut), uniform = réparti, times = instants donnés" },
+    maxFrames: { type: "integer", minimum: 1, maximum: 60, description: "Défaut 24" },
+    times: { type: "array", items: { type: "number" }, description: "Instants en secondes (mode times)" },
+    contactSheet: { type: "boolean", description: "Renvoyer la planche contact (défaut true)" },
+    thumbWidth: { type: "integer", description: "Largeur des vignettes (défaut 240)" },
+    columns: { type: "integer", description: "Colonnes de la planche (défaut 6)" },
+  })],
+  ["analyze_audio", "Analyse le son (export WAV temporaire) : loudness intégrée LUFS (EBU R128), plage dynamique LRA, crêtes, saturation, " +
+    "équilibre gauche/droite et phase, courbe de niveau, silences, tempo. Avec perTrack : niveaux de chaque piste dans le temps " +
+    "(équilibre voix/musique/ambiance). Compare à une cible de diffusion.", S({
+    ...seqArgs,
+    target: { type: "string", enum: ["web", "podcast", "broadcast", "cinema"], description: "Cible (défaut web = -14 LUFS)" },
+    perTrack: { type: "boolean", description: "Analyser chaque piste audio séparément (un export par piste)" },
+    range: { type: "string", enum: ["entire", "inout"] },
+    curveStepSeconds: { type: "number", description: "Pas de la courbe de niveau (défaut 5 s)" },
+    presetPath: { type: "string", description: "Préréglage .epr WAV (sinon recherché automatiquement)" },
+  })],
   ["undo", "Annule les dernières actions de Claude en restaurant le projet tel qu'il était avant (le projet est rechargé). " +
     "Réversible avec redo.", S({ steps: { type: "integer", minimum: 1, description: "Nombre d'actions à annuler (défaut : 1)" } })],
   ["redo", "Rétablit ce qui a été annulé par le dernier undo.", S({})],
@@ -152,14 +182,14 @@ function readBridgeConfig() {
   }
 }
 
-function callBridge(tool, args) {
+function callBridge(tool, args, timeoutMs = CALL_TIMEOUT_MS) {
   const cfg = readBridgeConfig();
   const body = JSON.stringify({ tool, args });
   return new Promise((resolve, reject) => {
     const req = http.request({
       host: "127.0.0.1", port: cfg.port, path: "/call", method: "POST",
       headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body), "X-Bridge-Token": cfg.token },
-      timeout: CALL_TIMEOUT_MS,
+      timeout: timeoutMs,
     }, (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
@@ -193,8 +223,8 @@ async function waitForFile(file, timeoutMs) {
 // ------------------------------------------------------------------ points de restauration
 // Chaque point = copie du .prproj enregistrée juste avant une action.
 // history : états "avant action" (le plus récent à la fin). redo : piles { snapshot, undone } pour rétablir.
-async function host(tool, args) {
-  const r = await callBridge(tool, args || {});
+async function host(tool, args, timeoutMs) {
+  const r = await callBridge(tool, args || {}, timeoutMs);
   if (!r.ok) throw new Error(r.error);
   return r.result;
 }
@@ -309,6 +339,8 @@ async function checkpointTool(name, args) {
   }
 }
 
+const analyzers = createAnalyzers({ host, waitForFile });
+
 const CHECKPOINT_TOOLS = new Set(["undo", "redo", "list_checkpoints", "create_checkpoint", "restore_checkpoint"]);
 
 function summarize(name, args) {
@@ -329,6 +361,7 @@ async function runToolUnlocked(name, args) {
   args = { ...(args || {}) };
 
   if (CHECKPOINT_TOOLS.has(name)) return checkpointTool(name, args);
+  if (analyzers[name]) return analyzers[name](args);
 
   let pre = null, warning = "";
   if (AUTO_CHECKPOINT && MUTATING.has(name)) {

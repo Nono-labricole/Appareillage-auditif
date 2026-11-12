@@ -247,9 +247,9 @@ var ClaudeBridge = (function () {
       var f = entries[i];
       if (f instanceof Folder) searchFiles(f, ext, query, results, depth + 1, max);
       else {
-        var name = decodeURI(f.name);
-        if (name.toLowerCase().slice(-ext.length) === ext &&
-            (!query || name.toLowerCase().indexOf(query.toLowerCase()) >= 0)) results.push(f.fsName);
+        var name = decodeURI(f.name).toLowerCase(), full = f.fsName.toLowerCase();
+        if (name.slice(-ext.length) === ext &&
+            (!query || full.indexOf(query.toLowerCase()) >= 0)) results.push(f.fsName);
       }
     }
   }
@@ -583,6 +583,29 @@ var ClaudeBridge = (function () {
     }
     var r = s.exportAsMediaDirect(args.outputPath, args.presetPath, range);
     return { exported: true, result: r, outputPath: args.outputPath };
+  };
+
+  // Export audio de la séquence (pour l'analyse). soloTrackIndex : n'exporte que cette piste audio
+  // (les autres sont rendues muettes le temps de l'export, puis remises dans leur état d'origine).
+  tools.export_audio = function (args) {
+    var s = getSeq(args);
+    if (!args.outputPath || !args.presetPath) fail('"outputPath" et "presetPath" requis.');
+    var range = args.range === 'inout' ? 1 : 0;
+    var tracks = s.audioTracks, saved = [], r;
+    var solo = (args.soloTrackIndex === undefined || args.soloTrackIndex === null) ? -1 : num(args.soloTrackIndex);
+    if (solo >= tracks.numTracks) fail('Piste audio ' + solo + ' inexistante.');
+    try {
+      if (solo >= 0) {
+        for (var i = 0; i < tracks.numTracks; i++) {
+          saved.push(tracks[i].isMuted());
+          tracks[i].setMute(i === solo ? 0 : 1);
+        }
+      }
+      r = s.exportAsMediaDirect(args.outputPath, args.presetPath, range);
+    } finally {
+      for (var j = 0; j < saved.length; j++) { try { tracks[j].setMute(saved[j] ? 1 : 0); } catch (e) {} }
+    }
+    return { outputPath: args.outputPath, result: r };
   };
 
   tools.export_frame = function (args) {
