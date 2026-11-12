@@ -1,0 +1,10 @@
+{
+  "name": "premiere-claude-bridge",
+  "version": "1.0.0",
+  "description": "Serveur MCP local pour piloter Adobe Premiere Pro depuis Claude (sans connexion externe).",
+  "main": "index.js",
+  "bin": { "premiere-claude-bridge": "index.js" },
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node test.js" },
+  "license": "MIT"
+}

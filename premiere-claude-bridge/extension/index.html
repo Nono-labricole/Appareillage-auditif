@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Claude Bridge</title>
+  <style>
+    body { background: #232323; color: #d6d6d6; font: 12px/1.4 -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 12px; }
+    h1 { font-size: 13px; margin: 0 0 8px; }
+    .status { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #777; }
+    .dot.on { background: #3fb950; }
+    .dot.err { background: #f85149; }
+    code { background: #1a1a1a; padding: 1px 4px; border-radius: 3px; }
+    #log { background: #1a1a1a; height: 130px; overflow-y: auto; padding: 6px; font-family: monospace; font-size: 11px; white-space: pre-wrap; }
+    button { background: #3a3a3a; color: #ddd; border: 1px solid #555; border-radius: 3px; padding: 3px 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Claude Bridge</h1>
+  <div class="status"><span id="dot" class="dot"></span><span id="status">Démarrage…</span></div>
+  <div style="margin-bottom:8px">Laissez ce panneau ouvert pour que Claude puisse piloter Premiere. <button id="restart">Redémarrer</button></div>
+  <div id="log"></div>
+  <script src="js/main.js"></script>
+</body>
+</html>
