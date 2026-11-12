@@ -1,8 +1,8 @@
 """U-Net de débruitage, initialisé aléatoirement (aucun poids pré-entraîné).
 
 Le réseau reçoit une image bruitée x_t et le pas de temps t, et prédit le bruit
-qui a été ajouté. Il peut optionnellement être conditionné par une classe
-(un sous-dossier de votre dataset = une classe).
+qui a été ajouté. Il peut optionnellement être conditionné par des mots-clés (plusieurs à la fois) :
+chaque mot-clé a son propre vecteur appris, et on additionne ceux de l'image.
 """
 import math
 
@@ -72,22 +72,26 @@ class UNet(nn.Module):
         num_res_blocks: int = 2,
         attn_resolutions=(16, 8),
         dropout: float = 0.1,
-        num_classes: int = 0,
+        num_tags: int = 0,
     ):
         super().__init__()
         self.config = dict(
             image_size=image_size, in_channels=in_channels, base_channels=base_channels,
             channel_mults=tuple(channel_mults), num_res_blocks=num_res_blocks,
-            attn_resolutions=tuple(attn_resolutions), dropout=dropout, num_classes=num_classes,
+            attn_resolutions=tuple(attn_resolutions), dropout=dropout, num_tags=num_tags,
         )
         self.base_channels = base_channels
-        self.num_classes = num_classes
+        self.num_tags = num_tags
         emb_dim = base_channels * 4
         self.time_mlp = nn.Sequential(
             nn.Linear(base_channels, emb_dim), nn.SiLU(), nn.Linear(emb_dim, emb_dim)
         )
-        # Index num_classes = "pas de classe" (utilisé pour le classifier-free guidance)
-        self.class_emb = nn.Embedding(num_classes + 1, emb_dim) if num_classes > 0 else None
+        if num_tags > 0:
+            self.tag_proj = nn.Linear(num_tags, emb_dim, bias=False)
+            # Vecteur "aucune consigne" : sert au mode non conditionnel et au guidage (classifier-free guidance)
+            self.null_emb = nn.Parameter(torch.zeros(emb_dim))
+        else:
+            self.tag_proj = None
 
         self.input_conv = nn.Conv2d(in_channels, base_channels, 3, padding=1)
 
@@ -133,12 +137,18 @@ class UNet(nn.Module):
         nn.init.zeros_(self.out[-1].weight)
         nn.init.zeros_(self.out[-1].bias)
 
-    def forward(self, x, t, y=None):
+    def forward(self, x, t, tags=None, keep=None):
+        """tags : (B, num_tags) vecteur 0/1 des mots-clés ; keep : (B,) booléen, False = ignorer les mots-clés."""
         emb = self.time_mlp(timestep_embedding(t, self.base_channels))
-        if self.class_emb is not None:
-            if y is None:
-                y = torch.full((x.shape[0],), self.num_classes, device=x.device, dtype=torch.long)
-            emb = emb + self.class_emb(y)
+        if self.tag_proj is not None:
+            null = self.null_emb.to(emb.dtype).expand(x.shape[0], -1)
+            if tags is None:
+                cond = null
+            else:
+                cond = self.tag_proj(tags.to(self.tag_proj.weight.dtype)).to(emb.dtype)
+                if keep is not None:
+                    cond = torch.where(keep[:, None], cond, null)
+            emb = emb + cond
 
         h = self.input_conv(x)
         hs = [h]
