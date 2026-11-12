@@ -64,12 +64,31 @@ claude mcp add premiere -- node /chemin/vers/premiere-claude-bridge/mcp-server/i
 | Effets | `get_clip_effects`, `set_clip_effect_property` (valeur ou image clé : échelle, position, opacité…), `list_available_effects`, `add_effect`, `add_transition` |
 | Marqueurs | `add_marker`, `list_markers` |
 | Export | `find_export_presets`, `export_sequence` (direct ou Media Encoder), `export_frame` (PNG renvoyé à Claude pour qu'il **voie** l'image) |
+| Sources et fichiers | `get_source_info`, `preview_source`, `list_files`, `read_file` (voir ci-dessous) |
 | Analyse | `analyze_rhythm`, `analyze_color`, `analyze_audio` (voir ci-dessous) |
 | Annulation | `undo` (une ou plusieurs actions), `redo`, `list_checkpoints`, `create_checkpoint`, `restore_checkpoint` |
 | Avancé | `execute_extendscript` : exécute n'importe quel code ExtendScript — couvre tout ce que l'API de Premiere permet |
 
 Les temps sont en secondes ; les pistes et clips sont indexés à partir de 0 (V1 = piste vidéo 0).
 Les noms d'effets/composants sont ceux de la langue de votre Premiere (ex. « Trajectoire » / « Motion »).
+
+## Accès aux sources et aux fichiers du projet
+
+- **`get_source_info`** — fiche d'un rush : fichier sur disque (présent ou hors ligne, taille, date), durée, cadence, résolution,
+  codec et audio (colonnes de Premiere), métadonnées caméra / XMP (date de tournage, modèle, scène, description…), commentaires
+  et marqueurs posés sur le rush, points d'entrée/sortie marqués, et **toutes les séquences où il est utilisé** (piste, position, partie du rush).
+- **`preview_source`** — Claude **regarde** un rush sans toucher au montage : planche contact d'images réparties sur le rush
+  (ou une plage donnée), mesures d'exposition/couleur, et en option le son (niveau, silences, tempo).
+  Une séquence temporaire est créée dans un chutier `_Claude (temporaire)` puis supprimée, et votre séquence active est rétablie.
+- **`list_files` / `read_file`** — parcourir et lire les fichiers autour du projet : sous-titres (.srt, .vtt), script, notes,
+  CSV, EDL, XML… (texte renvoyé en clair) et images (.png, .jpg… renvoyées pour être vues). Les vidéos et sons se regardent avec `preview_source`.
+
+Par sécurité, l'accès disque est **limité au dossier du projet et aux dossiers qui contiennent ses médias**
+(les `..` et liens symboliques sont résolus avant la vérification). Pour ajouter d'autres dossiers :
+`PREMIERE_BRIDGE_EXTRA_ROOTS` (séparés par `;` sous Windows, `:` sous macOS). Pour couper l'accès aux fichiers : `PREMIERE_BRIDGE_DISABLE_FILES=1`.
+
+Exemples : *« Quels rushes de la scène 12 n'ai-je pas encore utilisés ? »*, *« Montre-moi le rush C0042 et dis-moi où est la meilleure partie »*,
+*« Lis le fichier de sous-titres et place des marqueurs aux changements de sujet »*.
 
 ## Analyse du montage
 
@@ -126,6 +145,8 @@ Variables d'environnement du serveur MCP (dans `"env"` de la config Claude) :
 - `PREMIERE_BRIDGE_DISABLE_SCRIPT=1` : retire l'outil `execute_extendscript` (si votre organisation ne veut pas d'exécution de code arbitraire).
 - `PREMIERE_BRIDGE_TIMEOUT_MS` : délai max d'une commande (défaut 120000).
 - `PREMIERE_BRIDGE_CONFIG` : autre emplacement pour `bridge.json` (les points de restauration sont rangés à côté).
+- `PREMIERE_BRIDGE_DISABLE_FILES=1` : retire `list_files` et `read_file`.
+- `PREMIERE_BRIDGE_EXTRA_ROOTS` : dossiers supplémentaires lisibles par Claude.
 - `PREMIERE_BRIDGE_AUTO_CHECKPOINT=0` : désactive les points de restauration automatiques (seuls `create_checkpoint` manuels restent).
 - `PREMIERE_BRIDGE_MAX_CHECKPOINTS` : nombre de points conservés par projet (défaut 30).
 

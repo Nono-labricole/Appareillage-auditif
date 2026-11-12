@@ -630,6 +630,99 @@ var ClaudeBridge = (function () {
     return { opened: args.path };
   };
 
+  // ---- sources (rushes)
+  var TEMP_BIN = '_Claude (temporaire)';
+
+  function markersOf(collection) {
+    var out = [], m, guard = 0;
+    try { m = collection.getFirstMarker(); } catch (e) { return out; }
+    while (m && guard++ < 2000) {
+      out.push({ name: m.name, comment: m.comments, start: round(m.start.seconds), end: round(m.end.seconds), type: m.type });
+      m = collection.getNextMarker(m);
+    }
+    return out;
+  }
+
+  tools.get_source_info = function (args) {
+    var it = findItem(args.item), d = describeItem(it);
+    try { d.offline = it.isOffline(); } catch (e) {}
+    try { d.colorLabel = it.getColorLabel(); } catch (e) {}
+    try {
+      var fi = it.getFootageInterpretation();
+      d.interpretation = { frameRate: fi.frameRate, pixelAspectRatio: fi.pixelAspectRatio, fieldType: fi.fieldType, alphaUsage: fi.alphaUsage };
+    } catch (e) {}
+    try { d.markedIn = round(it.getInPoint(4).seconds); d.markedOut = round(it.getOutPoint(4).seconds); } catch (e) {}
+    try { d.projectMetadata = it.getProjectMetadata(); } catch (e) {}
+    try { d.xmpMetadata = it.getXMPMetadata(); } catch (e) {}
+    try { d.markers = markersOf(it.getMarkers()); } catch (e) {}
+
+    // Où ce média est-il utilisé dans les séquences ?
+    var usage = [], p = project();
+    for (var i = 0; i < p.sequences.numSequences; i++) {
+      var s = p.sequences[i], kinds = ['video', 'audio'];
+      for (var k = 0; k < 2; k++) {
+        var tracks = getTracks(s, kinds[k]);
+        for (var t = 0; t < tracks.numTracks; t++) {
+          for (var c = 0; c < tracks[t].clips.numItems; c++) {
+            var cl = tracks[t].clips[c];
+            var pi = null; try { pi = cl.projectItem; } catch (e) {}
+            if (pi && pi.nodeId === it.nodeId && usage.length < 200) {
+              usage.push({ sequence: s.name, sequenceId: s.sequenceID, track: (kinds[k] === 'video' ? 'V' : 'A') + (t + 1), clipIndex: c,
+                           start: round(cl.start.seconds), end: round(cl.end.seconds),
+                           sourceIn: round(cl.inPoint.seconds), sourceOut: round(cl.outPoint.seconds) });
+            }
+          }
+        }
+      }
+    }
+    d.usedIn = usage;
+    return d;
+  };
+
+  // Séquence jetable contenant uniquement ce média (pour en exporter des images ou le son).
+  tools.create_temp_sequence = function (args) {
+    var it = findItem(args.item), p = project();
+    if (it.type !== ProjectItemType.CLIP && it.type !== ProjectItemType.FILE) fail('"' + it.name + '" n\'est pas un média.');
+    var prev = p.activeSequence ? p.activeSequence.sequenceID : null;
+    var bin = findBin(TEMP_BIN, true);
+    var s = p.createNewSequenceFromClips('_claude_apercu_' + new Date().getTime(), [it], bin);
+    if (!s) fail('Impossible de créer une séquence pour ce média.');
+    return { sequenceId: s.sequenceID, previousSequenceId: prev, durationSeconds: round(ticksToSec(s.end)) };
+  };
+
+  tools.delete_temp_sequence = function (args) {
+    var p = project(), removed = false;
+    for (var i = 0; i < p.sequences.numSequences; i++) {
+      var s = p.sequences[i];
+      if (s.sequenceID === args.sequenceId) { p.deleteSequence(s); removed = true; break; }
+    }
+    try {
+      var root = p.rootItem;
+      for (var j = 0; j < root.children.numItems; j++) {
+        var b = root.children[j];
+        if (b.type === ProjectItemType.BIN && b.name === TEMP_BIN && b.children.numItems === 0) { b.deleteBin(); break; }
+      }
+    } catch (e) {}
+    if (args.previousSequenceId) { try { p.openSequence(args.previousSequenceId); } catch (e2) {} }
+    return { removed: removed };
+  };
+
+  tools.list_media_paths = function () {
+    var out = [], seen = {};
+    function walk(bin) {
+      for (var i = 0; i < bin.children.numItems; i++) {
+        var c = bin.children[i];
+        if (c.type === ProjectItemType.BIN) walk(c);
+        else {
+          var mp = ''; try { mp = c.getMediaPath(); } catch (e) {}
+          if (mp && !seen[mp]) { seen[mp] = true; out.push(mp); }
+        }
+      }
+    }
+    walk(project().rootItem);
+    return { projectPath: project().path, mediaPaths: out };
+  };
+
   // ---- primitives utilisées par les points de restauration (gérés par le serveur MCP)
   tools.checkpoint_prepare = function () {
     var p = project();

@@ -13,12 +13,15 @@ const os = require("os");
 const path = require("path");
 const readline = require("readline");
 const { createAnalyzers } = require("./lib/analyzers");
+const { createSources } = require("./lib/sources");
 
 const SERVER_INFO = { name: "premiere-claude-bridge", version: "1.0.0" };
 const SUPPORTED_PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const CONFIG_FILE = process.env.PREMIERE_BRIDGE_CONFIG ||
   path.join(os.homedir(), ".premiere-claude-bridge", "bridge.json");
 const ALLOW_SCRIPT = process.env.PREMIERE_BRIDGE_DISABLE_SCRIPT !== "1";
+const ALLOW_FILES = process.env.PREMIERE_BRIDGE_DISABLE_FILES !== "1";
+const EXTRA_ROOTS = (process.env.PREMIERE_BRIDGE_EXTRA_ROOTS || "").split(path.delimiter).filter(Boolean);
 const CALL_TIMEOUT_MS = Number(process.env.PREMIERE_BRIDGE_TIMEOUT_MS || 120000);
 const AUTO_CHECKPOINT = process.env.PREMIERE_BRIDGE_AUTO_CHECKPOINT !== "0";
 const MAX_CHECKPOINTS = Math.max(1, Number(process.env.PREMIERE_BRIDGE_MAX_CHECKPOINTS || 30));
@@ -156,6 +159,21 @@ const TOOLS = [
     curveStepSeconds: { type: "number", description: "Pas de la courbe de niveau (défaut 5 s)" },
     presetPath: { type: "string", description: "Préréglage .epr WAV (sinon recherché automatiquement)" },
   })],
+  ["get_source_info", "Fiche complète d'un média du projet (rush, son, image) : fichier sur disque, durée, cadence, résolution, codec, " +
+    "audio, métadonnées caméra/XMP, notes de dérushage, marqueurs du rush, points d'entrée/sortie marqués, et où il est utilisé dans les séquences.", S({
+    item: itemRef,
+  }, ["item"])],
+  ["preview_source", "Regarde un rush sans toucher au montage : planche contact numérotée d'images réparties sur le rush (ou une plage), " +
+    "mesures d'exposition et de couleur, et en option analyse du son (niveau, silences, tempo). Utilise une séquence temporaire supprimée ensuite.", S({
+    item: itemRef,
+    maxFrames: { type: "integer", minimum: 1, maximum: 60, description: "Nombre d'images (défaut 12)" },
+    fromSeconds: { type: "number", description: "Début de la plage dans le rush" },
+    toSeconds: { type: "number", description: "Fin de la plage dans le rush" },
+    analyzeAudio: { type: "boolean", description: "Analyser aussi le son du rush" },
+    target: { type: "string", enum: ["web", "podcast", "broadcast", "cinema"] },
+    presetPath: { type: "string", description: "Préréglage .epr WAV pour l'analyse du son" },
+    columns: { type: "integer" }, thumbWidth: { type: "integer" }, curveStepSeconds: { type: "number" },
+  }, ["item"])],
   ["undo", "Annule les dernières actions de Claude en restaurant le projet tel qu'il était avant (le projet est rechargé). " +
     "Réversible avec redo.", S({ steps: { type: "integer", minimum: 1, description: "Nombre d'actions à annuler (défaut : 1)" } })],
   ["redo", "Rétablit ce qui a été annulé par le dernier undo.", S({})],
@@ -167,6 +185,20 @@ const TOOLS = [
     id: { type: "string" },
   }, ["id"])],
 ];
+if (ALLOW_FILES) {
+  TOOLS.push(
+    ["list_files", "Liste les fichiers du dossier du projet ou d'un dossier de médias (sous-titres, scripts, notes, photos, musiques non importées…). " +
+      "Accès limité au dossier du projet et aux dossiers contenant ses médias.", S({
+      path: { type: "string", description: "Dossier à lister (défaut : dossier du projet)" },
+      recursive: { type: "boolean", description: "Inclure les sous-dossiers (4 niveaux max)" },
+      maxEntries: { type: "integer" },
+    })],
+    ["read_file", "Lit un fichier du projet : texte (sous-titres .srt/.vtt, script, notes, CSV, EDL, XML…) renvoyé en clair, " +
+      "image (.png/.jpg…) renvoyée pour être vue. Les vidéos/sons se regardent avec preview_source.", S({
+      path: { type: "string" }, maxBytes: { type: "integer", description: "Taille max lue pour un texte (défaut 100 Ko)" },
+    }, ["path"]),
+    ]);
+}
 if (ALLOW_SCRIPT) {
   TOOLS.push(["execute_extendscript",
     "Exécute du code ExtendScript (ES3) arbitraire dans Premiere Pro et renvoie la valeur de la dernière expression. " +
@@ -340,6 +372,7 @@ async function checkpointTool(name, args) {
 }
 
 const analyzers = createAnalyzers({ host, waitForFile });
+const sources = createSources({ host, analyzers, extraRoots: EXTRA_ROOTS });
 
 const CHECKPOINT_TOOLS = new Set(["undo", "redo", "list_checkpoints", "create_checkpoint", "restore_checkpoint"]);
 
@@ -362,6 +395,7 @@ async function runToolUnlocked(name, args) {
 
   if (CHECKPOINT_TOOLS.has(name)) return checkpointTool(name, args);
   if (analyzers[name]) return analyzers[name](args);
+  if (sources[name]) return sources[name](args);
 
   let pre = null, warning = "";
   if (AUTO_CHECKPOINT && MUTATING.has(name)) {

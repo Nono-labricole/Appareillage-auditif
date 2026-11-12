@@ -95,6 +95,41 @@ const qe = { project: { getActiveSequence: () => ({
     fs.writeFileSync(base + ".png", png.encodePNG({ width: w, height: h, data }));
   } }) } };
 
+// ---- sources : vrai dossier de médias, métadonnées, séquence temporaire
+const mediaDir = path.join(tmp, "media");
+fs.mkdirSync(mediaDir);
+fs.writeFileSync(path.join(mediaDir, "A.mp4"), Buffer.alloc(2048, 1));
+fs.writeFileSync(path.join(mediaDir, "interview.srt"), "\ufeff1\n00:00:01,000 --> 00:00:03,000\nBonjour à tous\n");
+fs.writeFileSync(path.join(mediaDir, "logo.png"), png.encodePNG({ width: 4, height: 4, data: new Uint8Array(48).fill(200) }));
+const outside = fs.mkdtempSync(path.join(os.tmpdir(), "pcb-dehors-"));
+fs.writeFileSync(path.join(outside, "secret.txt"), "secret");
+Object.assign(clipA, {
+  getMediaPath: () => path.join(mediaDir, "A.mp4"), isOffline: () => false, getColorLabel: () => 3,
+  getFootageInterpretation: () => ({ frameRate: 25, pixelAspectRatio: 1, fieldType: 0, alphaUsage: 0 }),
+  getInPoint: () => T(1), getOutPoint: () => T(9),
+  getProjectMetadata: () => '<?xml version="1.0"?><premierePrivateProjectMetaData:Column.Intrinsic.MediaDuration>00:00:10:00</premierePrivateProjectMetaData:Column.Intrinsic.MediaDuration>' +
+    '<premierePrivateProjectMetaData:Column.Intrinsic.VideoInfo>1920 x 1080 (1,0)</premierePrivateProjectMetaData:Column.Intrinsic.VideoInfo>' +
+    '<premierePrivateProjectMetaData:Column.PropertyText.Comment>Bonne prise</premierePrivateProjectMetaData:Column.PropertyText.Comment>',
+  getXMPMetadata: () => '<x:xmpmeta><rdf:RDF><rdf:Description xmp:CreateDate="2026-10-01T10:00:00" tiff:Model="FX3"><xmpDM:scene>12</xmpDM:scene>' +
+    '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">Plan large du port</rdf:li></rdf:Alt></dc:description>' +
+    '<xmpMM:History>ignoré</xmpMM:History></rdf:Description></rdf:RDF></x:xmpmeta>',
+  getMarkers: () => { const ms = [{ name: "Rire", comments: "garder", start: T(4), end: T(4), type: "Comment" }];
+    return { getFirstMarker: () => ms[0], getNextMarker: () => undefined }; },
+});
+root.createBin = function (n) { const b = mkItem(n, 2, "bin-" + n, []); b.deleteBin = () => { const i = root.children.indexOf(b); root.children.splice(i, 1); root.children.numItems--; };
+  this.children.push(b); this.children.numItems++; return b; };
+app.project.createNewSequenceFromClips = (name, items, bin) => {
+  const s = { ...seq2, name, sequenceID: "tmp-" + name, end: String(10 * TICKS),
+    videoTracks: coll([{ name: "V1", clips: coll([mkClip(items[0].name, items[0].nodeId, 0, 10)]), isMuted: () => false, isLocked: () => false }], "numTracks") };
+  app.project.sequences.push(s); app.project.sequences.numSequences++;
+  bin.children.push({ name, type: 1, nodeId: "seq-" + name }); bin.children.numItems++;
+  return s;
+};
+app.project.deleteSequence = (s) => {
+  const i = app.project.sequences.indexOf(s); app.project.sequences.splice(i, 1); app.project.sequences.numSequences--;
+  for (const b of root.children) if (b.name === "_Claude (temporaire)") { b.children.length = 0; b.children.numItems = 0; }
+};
+
 const ctx = vm.createContext({ app, qe, Time, ProjectItemType, File: function (p) { this.exists = true; }, Folder: Object.assign(function () { this.exists = false; }, { myDocuments: { fsName: "/aucun" } }) });
 vm.runInContext(fs.readFileSync(path.join(__dirname, "../extension/jsx/host.jsx"), "utf8"), ctx);
 
@@ -227,6 +262,49 @@ server.listen(0, "127.0.0.1", async () => {
 
     full = await callFull("analyze_audio", { sequenceName: "Seq Rythme" });
     assert.ok(full.isError && /préréglage/i.test(full.content[0].text), full.content[0].text);
+
+    // --- sources
+    full = await callFull("get_source_info", { item: "Rushes/A.mp4" });
+    assert.ok(!full.isError, full.content[0].text);
+    const si = JSON.parse(full.content[0].text);
+    assert.strictEqual(si.file.exists, true);
+    assert.strictEqual(si.premiereMetadata.VideoInfo, "1920 x 1080 (1,0)");
+    assert.strictEqual(si.premiereMetadata.Comment, "Bonne prise");
+    assert.strictEqual(si.fileMetadata["dc:description"], "Plan large du port");
+    assert.strictEqual(si.fileMetadata["xmpDM:scene"], "12");
+    assert.strictEqual(si.fileMetadata["tiff:Model"], "FX3");
+    assert.ok(!("xmpMM:History" in si.fileMetadata));
+    assert.strictEqual(si.markers[0].comment, "garder");
+    assert.ok(si.usedIn.some((u) => u.sequence === "Seq 1" && u.track === "V2"), JSON.stringify(si.usedIn));
+
+    app.project.openSequence("s1");
+    const nSeq = app.project.sequences.length;
+    full = await callFull("preview_source", { item: "A.mp4", maxFrames: 8, analyzeAudio: true, presetPath: "/x/wav.epr" });
+    assert.ok(!full.isError, full.content[0].text);
+    const pv = JSON.parse(full.content[0].text);
+    assert.strictEqual(pv.image.framesAnalyzed, 8);
+    assert.strictEqual(full.content[1].type, "image");
+    assert.ok(isFinite(JSON.parse(full.content[2].text).audio.mix.integratedLUFS));
+    assert.strictEqual(app.project.sequences.length, nSeq, "séquence temporaire supprimée");
+    assert.ok(!root.children.some((c) => c.name === "_Claude (temporaire)"), "chutier temporaire supprimé");
+    assert.strictEqual(app.project.activeSequence.sequenceID, "s1", "séquence active rétablie");
+
+    full = await callFull("list_files", {});
+    const lf = JSON.parse(full.content[0].text);
+    assert.ok(lf.entries.some((e) => e.path.endsWith("media")), JSON.stringify(lf));
+    full = await callFull("list_files", { path: mediaDir });
+    assert.strictEqual(JSON.parse(full.content[0].text).entries.length, 3);
+    full = await callFull("read_file", { path: path.join(mediaDir, "interview.srt") });
+    assert.ok(!full.isError && full.content[0].text.includes("Bonjour à tous"), full.content[0].text);
+    full = await callFull("read_file", { path: path.join(mediaDir, "logo.png") });
+    assert.strictEqual(full.content[1].type, "image");
+    full = await callFull("read_file", { path: path.join(mediaDir, "A.mp4") });
+    assert.ok(JSON.parse(full.content[0].text).binary);
+    full = await callFull("read_file", { path: path.join(outside, "secret.txt") });
+    assert.ok(full.isError && /Accès refusé/.test(full.content[0].text), full.content[0].text);
+    full = await callFull("read_file", { path: path.join(mediaDir, "..", "..", path.basename(outside), "secret.txt") });
+    assert.ok(full.isError && /Accès refusé/.test(full.content[0].text), "pas d'évasion par ..");
+    fs.rmSync(outside, { recursive: true, force: true });
 
     fs.writeFileSync(cfgFile, JSON.stringify({ port: server.address().port, token: "mauvais" }));
     r = await call("ping", {});
