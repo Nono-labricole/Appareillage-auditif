@@ -5,10 +5,15 @@ aléatoires et n'apprend qu'à partir de vos photos. Aucun modèle pré-entraîn
 aucune étape, ni pour générer, ni pour multiplier les photos, ni pour comprendre les mots-clés.
 
 ```
- vos photos ──► etiqueter.py ──► augmenter.py ──► train.py ──► sample.py
- (authentiques)  mots-clés +      variantes        entraînement   génération
-                 zone importante  (miroir, cadre…)  depuis zéro    avec mots-clés
+ vos photos ──► etiqueter.py ──────────────► augmenter.py ──► train.py ──► sample.py
+ (authentiques)  1. propose des mots-clés     variantes        entraînement   génération
+                 2. vous vérifiez/complétez   (miroir, cadre…)  depuis zéro    avec mots-clés
 ```
+
+**Ajouter des photos plus tard** : déposez-les dans le dossier, puis relancez les trois mêmes
+commandes. `etiqueter.py` analyse seulement les nouvelles photos, `augmenter.py` ne refait que ce
+qui a changé, et `train.py --resume --steps <plus>` continue l'entraînement, même s'il y a de
+nouveaux mots-clés.
 
 ## Installation
 
@@ -20,37 +25,65 @@ pip install -r requirements.txt
 Un GPU NVIDIA (CUDA) est fortement recommandé (sinon : Google Colab, GPU gratuit). Ça tourne aussi
 sur Mac (MPS) et sur CPU, mais le CPU est beaucoup trop lent pour un vrai entraînement.
 
-## 1. Mettre des mots-clés sur vos photos
+## 1. Mots-clés : proposition automatique, puis vérification
 
 ```bash
 python etiqueter.py mes_photos
 ```
 
-Une page s'ouvre dans votre navigateur. Elle tourne **uniquement sur votre ordinateur**.
-Pour chaque photo :
+**Au démarrage**, les nouvelles photos du dossier sont analysées et reçoivent une base de mots-clés
+(aussi lançable seule : `python pre_etiqueter.py mes_photos`). **Aucun modèle d'IA** entraîné sur
+les photos d'autres personnes n'est utilisé. Les propositions viennent de quatre sources :
 
-- **tapez des mots-clés** puis Entrée (ou séparés par des virgules) : `short, lunettes, plan large,
-  pose bizarre, à droite`… Cliquez sur un mot-clé déjà utilisé pour l'ajouter ou le retirer ;
-- **tracez la zone importante** à la souris (facultatif) : ce qui ne doit jamais être coupé lors des
-  recadrages automatiques (vous en entier, vos lunettes…) ;
-- « Copier ceux de la photo précédente » fait gagner du temps sur une série ;
-- raccourcis : Entrée dans un champ vide = photo suivante, Alt+← / Alt+→, Alt+C = copier.
+| Source | Mots-clés proposés |
+|---|---|
+| Mesures sur l'image | noir et blanc, sombre, lumineux, flou |
+| Infos de la photo (date, appareil) | saison (hémisphère nord), nuit, flash, selfie (caméra avant) |
+| Détection de visages « classique » d'OpenCV (méthode de 2001, sans réseau de neurones ; facultative, `--sans-visages` pour la couper) | visage visible, de face / de profil, seul / plusieurs personnes, gros plan / plan poitrine / plan moyen / plan large, à gauche / au centre / à droite, et une zone importante autour du visage |
+| **Vos photos déjà validées** | photos de la **même séance** (prises à moins de 45 min d'intervalle) : vos habits, accessoires, coiffure, lieu, météo… ; photo **quasi identique** (rafale, vidéo) : tous ses mots-clés |
 
-Tout est enregistré au fur et à mesure dans `mes_photos/etiquettes.json`. On peut s'arrêter et
-reprendre plus tard.
+Les expressions, humeurs, poses, habits et lieux ne peuvent pas être devinés sans IA. Ce sont donc
+les photos que vous validez qui permettent de les proposer pour les suivantes. Bouton
+**« Proposer à nouveau »** : relance les propositions en tenant compte de vos dernières validations.
+Plus vous validez, moins il reste à cocher.
 
-**Conseils pour les mots-clés**
-- Restez cohérent : toujours le même mot pour la même chose (`lunettes`, pas parfois `lunette`).
-- Décrivez ce qui varie d'une photo à l'autre : tenue, accessoires, pose, cadrage
-  (`gros plan`, `plan large`, `en entier`), lieu (`intérieur`, `plage`), lumière (`nuit`), etc.
-- Un mot-clé a besoin d'au moins 20 photos environ pour être appris (variantes comprises,
-  `train.py` vous prévient sinon).
+Une page s'ouvre ensuite dans votre navigateur. Elle tourne **uniquement sur votre ordinateur**.
+
+- Les mots-clés sont **rangés par catégorie** : expression, humeur, pose, cadrage, habits,
+  accessoires, cheveux et visage, lieu et contexte, météo et lumière, saison, technique.
+  Il y a environ 140 mots-clés au départ (`vocabulaire.json`).
+- **En pointillés orange** : proposé automatiquement. **En bleu** : coché. Cliquez pour cocher ou
+  décocher. Un mot-clé proposé que vous décochez ne sera plus jamais reproposé pour cette photo.
+- **Ajouter un mot-clé** : tapez-le, choisissez sa catégorie, Entrée. Il devient cochable pour
+  toutes les photos. Taper un mot-clé existant le coche, et la saisie filtre la liste.
+- **Modifier la liste** (en bas) : en mode édition, cliquer sur un mot-clé permet de le
+  renommer sur toutes les photos, de le changer de catégorie ou de le supprimer.
+- **Zone importante** : tracez à la souris ce qui ne doit jamais être coupé par les recadrages.
+  Elle est proposée automatiquement autour du visage.
+- **« ✓ Valider et suivante »** (ou Entrée dans le champ vide) confirme la photo. Le menu en haut
+  filtre les photos à vérifier, déjà vérifiées, ou toutes. Autres raccourcis : Alt+← / Alt+→,
+  Alt+C = copier les mots-clés de la photo précédente.
+
+Tout est enregistré au fur et à mesure (`etiquettes.json`, `vocabulaire.json`). On peut s'arrêter
+et reprendre plus tard.
+
+**Conseils**
+- Un mot-clé a besoin d'au moins 20 images environ pour être appris (variantes comprises).
+  `train.py` vous prévient sinon. Mieux vaut moins de mots-clés, bien appliqués, que beaucoup
+  utilisés au hasard.
+- Si une photo n'a pas de lunettes, ne pas cocher « lunettes » suffit : le modèle apprend la
+  différence entre les photos qui l'ont et celles qui ne l'ont pas. Encore faut-il le cocher sur
+  **toutes** les photos où il y en a.
 
 ## 2. Multiplier vos photos (sans IA)
 
 ```bash
 python augmenter.py --source mes_photos --sortie mes_photos_x20 --par-image 20
 ```
+
+Relancer la même commande après des modifications ne refait que les photos ajoutées ou dont les
+mots-clés ou la zone ont changé, et efface les variantes des photos supprimées.
+`--seulement-verifiees` ignore les photos pas encore validées.
 
 Chaque photo authentique donne 20 images : l'original, plus 19 variantes tirées au hasard parmi
 ces transformations :
@@ -96,7 +129,8 @@ Le fichier `etiquettes.json` du dossier est utilisé automatiquement. Pendant l'
 - une grille d'images générées est enregistrée dans `runs/moi/samples/` toutes les 2000
   itérations : c'est là qu'on voit le modèle progresser (bruit → formes → images) ;
 - `runs/moi/checkpoint.pt` est mis à jour toutes les 5000 itérations. `--resume` reprend
-  l'entraînement après une interruption.
+  l'entraînement après une interruption, ou le continue après ajout de photos (avec un `--steps`
+  plus grand). Les nouveaux mots-clés sont ajoutés au modèle sans perdre ce qu'il a déjà appris.
 
 | Option | Défaut | Rôle |
 |---|---|---|
@@ -138,8 +172,10 @@ python sample.py --ckpt runs/moi/checkpoint.pt --n 50 --separate --out-dir image
 ## Les fichiers
 
 - `etiqueter.py` : logiciel d'étiquetage (page web locale).
+- `pre_etiqueter.py` : propositions automatiques de mots-clés (sans IA).
 - `augmenter.py` : multiplication des photos en respectant leur sens.
-- `donnees.py` : lecture des mots-clés, règles, recadrage qui garde la zone importante.
+- `donnees.py` : lecture des mots-clés, vocabulaire par défaut, règles, recadrage qui garde la
+  zone importante.
 - `model.py` : U-Net qui prend une image bruitée, le niveau de bruit et les mots-clés, et prédit
   le bruit.
 - `diffusion.py` : ajout de bruit (planning cosinus sur 1000 étapes), perte, génération (DDIM)

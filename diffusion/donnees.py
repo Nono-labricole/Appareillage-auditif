@@ -8,6 +8,13 @@ Fichiers placés à la racine du dossier d'images :
 
   regles.json       ce qu'on a le droit de faire à une image sans changer son sens
                     (voir REGLES_PAR_DEFAUT ci-dessous).
+
+  vocabulaire.json  la liste des mots-clés proposés, rangés par catégorie (expression,
+                    habits, météo…). Modifiable depuis etiqueter.py.
+
+Une entrée de etiquettes.json peut aussi contenir :
+  "auto"    : mots-clés proposés automatiquement, pas encore confirmés par vous
+  "verifie" : true une fois que vous avez validé la photo dans etiqueter.py
 """
 import json
 import os
@@ -19,6 +26,7 @@ from PIL import Image
 EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".gif", ".tif", ".tiff"}
 FICHIER_ETIQUETTES = "etiquettes.json"
 FICHIER_REGLES = "regles.json"
+FICHIER_VOCABULAIRE = "vocabulaire.json"
 
 REGLES_PAR_DEFAUT = {
     "_aide": {
@@ -63,6 +71,8 @@ def charger_etiquettes(racine) -> dict:
             e = {"tags": e}
         e = dict(e)
         e["tags"] = sorted({normaliser_tag(t) for t in e.get("tags", []) if t.strip()})
+        if "auto" in e:
+            e["auto"] = sorted({normaliser_tag(t) for t in e["auto"] if t.strip()} & set(e["tags"]))
         out[nom] = e
     return out
 
@@ -84,6 +94,73 @@ def charger_regles(racine, creer=False) -> dict:
     regles["miroir_interdit"] = [normaliser_tag(t) for t in regles["miroir_interdit"]]
     regles["recadrage_interdit"] = [normaliser_tag(t) for t in regles["recadrage_interdit"]]
     return regles
+
+
+# ------------------------------------------------------------------ vocabulaire
+# "seance": true = en général identique pour toutes les photos d'une même séance
+# (même jour, même tenue, même lieu) ; sert à proposer des mots-clés automatiquement.
+VOCABULAIRE_PAR_DEFAUT = {"categories": [
+    {"nom": "Expression", "seance": False, "tags": [
+        "sourire", "rire", "sérieux", "neutre", "grimace", "bouche ouverte", "langue tirée", "yeux fermés",
+        "clin d'œil", "surpris", "sourcils froncés"]},
+    {"nom": "Humeur", "seance": False, "tags": [
+        "joyeux", "détendu", "calme", "concentré", "pensif", "fatigué", "énervé", "triste", "fier"]},
+    {"nom": "Pose", "seance": False, "tags": [
+        "de face", "de trois quarts", "de profil", "de dos", "debout", "assis", "allongé", "accroupi",
+        "bras croisés", "bras levés", "mains sur les hanches", "main au visage", "pouce levé", "en mouvement",
+        "pose bizarre", "regard caméra", "regard ailleurs"]},
+    {"nom": "Cadrage", "seance": False, "tags": [
+        "gros plan", "plan poitrine", "plan moyen", "en entier", "plan large", "selfie", "à gauche",
+        "au centre", "à droite", "vu d'en haut", "vu d'en bas"]},
+    {"nom": "Habits", "seance": True, "tags": [
+        "t-shirt", "chemise", "pull", "sweat à capuche", "veste", "manteau", "costume", "cravate",
+        "short", "jean", "pantalon", "jogging", "robe", "jupe", "maillot de bain", "tenue de sport",
+        "pyjama", "baskets", "chaussures de ville", "pieds nus"]},
+    {"nom": "Accessoires", "seance": True, "tags": [
+        "lunettes", "lunettes de soleil", "casquette", "bonnet", "chapeau", "capuche mise", "écharpe",
+        "montre", "bijoux", "sac", "casque audio", "écouteurs", "téléphone en main"]},
+    {"nom": "Cheveux et visage", "seance": True, "tags": [
+        "cheveux attachés", "cheveux détachés", "cheveux mouillés", "décoiffé", "barbe", "rasé",
+        "maquillage"]},
+    {"nom": "Lieu et contexte", "seance": True, "tags": [
+        "intérieur", "extérieur", "maison", "chambre", "cuisine", "bureau", "professionnel", "école",
+        "rue", "ville", "nature", "forêt", "plage", "montagne", "jardin", "voiture", "transports",
+        "restaurant", "soirée", "fête", "sport", "vacances", "concert"]},
+    {"nom": "Météo et lumière", "seance": True, "tags": [
+        "soleil", "nuageux", "pluie", "neige", "brouillard", "vent", "nuit", "coucher de soleil",
+        "contre-jour", "lumière artificielle", "sombre", "lumineux", "flash"]},
+    {"nom": "Saison", "seance": True, "tags": ["printemps", "été", "automne", "hiver"]},
+    {"nom": "Technique", "seance": False, "tags": [
+        "noir et blanc", "flou", "photo ancienne", "visage visible", "seul", "plusieurs personnes",
+        "texte visible", "miroir"]},
+    {"nom": "Autres", "seance": False, "tags": []},
+]}
+
+
+def charger_vocabulaire(racine, creer=False) -> dict:
+    f = Path(racine) / FICHIER_VOCABULAIRE
+    if f.exists():
+        voc = json.loads(f.read_text(encoding="utf-8"))
+    else:
+        voc = json.loads(json.dumps(VOCABULAIRE_PAR_DEFAUT))
+        if creer:
+            sauver_json(f, voc)
+    for c in voc["categories"]:
+        vus, tags = set(), []
+        for t in map(normaliser_tag, c.get("tags", [])):
+            if t and t not in vus:
+                vus.add(t)
+                tags.append(t)
+        c["tags"] = tags
+        c.setdefault("seance", False)
+    if not any(c["nom"] == "Autres" for c in voc["categories"]):
+        voc["categories"].append({"nom": "Autres", "seance": False, "tags": []})
+    return voc
+
+
+def categorie_de(voc) -> dict:
+    """tag -> catégorie"""
+    return {t: c for c in voc["categories"] for t in c["tags"]}
 
 
 # ----------------------------------------------------------------------- miroir

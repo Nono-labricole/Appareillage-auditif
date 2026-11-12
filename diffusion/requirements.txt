@@ -1,3 +1,7 @@
 torch>=2.1
 torchvision>=0.16
 pillow
+numpy
+# Facultatif : détection de visages classique pour les mots-clés automatiques
+# (version 4 : la version 5 n'inclut plus ces détecteurs)
+opencv-python-headless<5

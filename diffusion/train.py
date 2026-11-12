@@ -11,8 +11,9 @@ Exemples :
     # Utiliser aussi les noms des sous-dossiers comme mots-clés
     python train.py --data mes_images --out runs/essai2 --dossiers-comme-tags
 
-    # Reprendre un entraînement interrompu
-    python train.py --data mes_images --out runs/essai1 --resume
+    # Reprendre un entraînement interrompu, ou le continuer après avoir ajouté des photos
+    # (même avec de nouveaux mots-clés) : pensez à augmenter --steps
+    python train.py --data mes_images --out runs/essai1 --resume --steps 150000
 """
 import argparse
 import copy
@@ -137,10 +138,28 @@ def main():
     ckpt_path = out / "checkpoint.pt"
     if args.resume and ckpt_path.exists():
         ck = torch.load(ckpt_path, map_location=device)
-        if ck.get("tags", []) != ds.tags:
-            raise SystemExit("Les mots-clés ont changé depuis cet entraînement : impossible de reprendre. "
-                             "Lancez un nouvel entraînement (autre --out).")
-        model.load_state_dict(ck["model"]); ema.load_state_dict(ck["ema"]); opt.load_state_dict(ck["opt"])
+        anciens = ck.get("tags", [])
+        if anciens == ds.tags:
+            model.load_state_dict(ck["model"]); ema.load_state_dict(ck["ema"]); opt.load_state_dict(ck["opt"])
+        else:
+            # Nouveaux mots-clés (nouvelles photos) : on garde tout ce qui a été appris, les nouveaux
+            # mots-clés démarrent de zéro ; ceux qui ont disparu sont oubliés.
+            if bool(anciens) != bool(ds.tags):
+                raise SystemExit("Impossible de reprendre : un modèle sans mots-clés ne peut pas passer à "
+                                 "un modèle avec mots-clés (ou l'inverse). Lancez un nouvel entraînement.")
+            for cle, cible in (("model", model), ("ema", ema)):
+                etat = dict(ck[cle])
+                w_old = etat["tag_proj.weight"]
+                w_new = torch.zeros(w_old.shape[0], len(ds.tags), dtype=w_old.dtype)
+                for j, t in enumerate(ds.tags):
+                    if t in anciens:
+                        w_new[:, j] = w_old[:, anciens.index(t)]
+                etat["tag_proj.weight"] = w_new
+                cible.load_state_dict(etat)
+            ajoutes = [t for t in ds.tags if t not in anciens]
+            retires = [t for t in anciens if t not in ds.tags]
+            print(f"Mots-clés ajoutés : {ajoutes or '-'} | retirés : {retires or '-'} "
+                  "(l'optimiseur repart de zéro, le reste du modèle est conservé)")
         step = ck["step"]
         print(f"Reprise à l'itération {step}")
 

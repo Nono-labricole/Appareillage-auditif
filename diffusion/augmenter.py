@@ -7,7 +7,13 @@ mot-clé « noir et blanc », la zone importante n'est jamais coupée, etc. (voi
 
 Exemple :
     python augmenter.py --source mes_photos --sortie mes_photos_x20 --par-image 20
+
+Relancer la même commande après avoir ajouté ou corrigé des photos ne refait que ce qui a
+changé : nouvelles photos, photos dont les mots-clés ou la zone ont changé ; les variantes
+des photos supprimées sont effacées.
 """
+import hashlib
+import json
 import argparse
 import random
 import shutil
@@ -95,6 +101,9 @@ def main():
     ap.add_argument("--par-image", type=int, default=20, help="nombre d'images produites par photo (original compris)")
     ap.add_argument("--taille", type=int, default=256, help="côté des images produites, en pixels")
     ap.add_argument("--seulement-etiquetees", action="store_true", help="ignorer les photos sans mot-clé")
+    ap.add_argument("--seulement-verifiees", action="store_true",
+                    help="ignorer les photos pas encore validées dans etiqueter.py")
+    ap.add_argument("--tout-refaire", action="store_true", help="régénérer toutes les variantes")
     ap.add_argument("--graine", type=int, default=0)
     args = ap.parse_args()
 
@@ -106,15 +115,44 @@ def main():
     fichiers = D.lister_images(src)
     if args.seulement_etiquetees:
         fichiers = [f for f in fichiers if etiquettes.get(f, {}).get("tags")]
+    non_verifiees = [f for f in fichiers if not etiquettes.get(f, {}).get("verifie")]
+    if args.seulement_verifiees:
+        fichiers = [f for f in fichiers if f not in non_verifiees]
+    elif non_verifiees:
+        print(f"Attention : {len(non_verifiees)} photo(s) pas encore validées (leurs mots-clés proposés "
+              f"automatiquement sont utilisés tels quels). --seulement-verifiees pour les ignorer.")
     if not fichiers:
         raise SystemExit("Aucune image à traiter.")
 
     out.mkdir(parents=True, exist_ok=True)
-    rng = random.Random(args.graine)
+    precedentes = D.charger_etiquettes(out) if not args.tout_refaire else {}
+    deja = {}  # photo source -> {nom de variante: entrée}
+    for nom, e in precedentes.items():
+        deja.setdefault(e.get("source"), {})[nom] = e
+
+    def signature(rel, e):
+        p = src / rel
+        brut = json.dumps([e.get("tags", []), e.get("zone"), p.stat().st_mtime_ns, p.stat().st_size,
+                           args.par_image, args.taille, args.graine, regles], sort_keys=True, ensure_ascii=False)
+        return hashlib.sha1(brut.encode()).hexdigest()[:16]
+
     nouvelles, apercu = {}, []
+    gardees = refaites = 0
     for i, rel in enumerate(fichiers, 1):
         e = etiquettes.get(rel, {})
         tags, zone = e.get("tags", []), e.get("zone")
+        sig = signature(rel, e)
+        anciennes = deja.pop(rel, {})
+        if anciennes and all(v.get("signature") == sig and (out / n).exists() for n, v in anciennes.items()) \
+                and len(anciennes) == args.par_image:
+            nouvelles.update(anciennes)
+            gardees += 1
+            continue
+        for n in anciennes:  # photo modifiée : on efface ses anciennes variantes
+            (out / n).unlink(missing_ok=True)
+        refaites += 1
+        # graine propre à chaque photo : ses variantes ne dépendent pas des autres photos
+        rng = random.Random(f"{args.graine}:{rel}")
         try:
             img = D.ouvrir(src / rel)
         except Exception as err:  # image illisible : on la saute sans tout arrêter
@@ -130,16 +168,24 @@ def main():
             v = v.resize((args.taille, args.taille), Image.LANCZOS)
             nom = f"{stem.as_posix()}_{k:03d}.jpg"
             v.save(out / nom, quality=95)
-            nouvelles[nom] = {"tags": vt, "source": rel, "transformations": desc}
+            nouvelles[nom] = {"tags": vt, "source": rel, "transformations": desc, "signature": sig}
             if len(apercu) < 32 and (k < 4):
                 apercu.append(v)
         print(f"[{i}/{len(fichiers)}] {rel} -> {args.par_image} images")
 
+    supprimees = 0
+    for variantes in deja.values():  # photos retirées de la source (ou exclues) : on efface leurs variantes
+        for n in variantes:
+            (out / n).unlink(missing_ok=True)
+            supprimees += 1
+
     D.sauver_json(out / D.FICHIER_ETIQUETTES, nouvelles)
     if (src / D.FICHIER_REGLES).exists():
         shutil.copy(src / D.FICHIER_REGLES, out / D.FICHIER_REGLES)
-    planche(apercu, out / "_apercu.jpg")
-    print(f"\n{len(nouvelles)} images écrites dans {out}/ (aperçu : {out / '_apercu.jpg'})")
+    if apercu:
+        planche(apercu, out / "_apercu.jpg")
+    print(f"\n{len(nouvelles)} images dans {out}/ : {refaites} photo(s) traitée(s), {gardees} inchangée(s), "
+          f"{supprimees} variante(s) obsolète(s) effacée(s). Aperçu : {out / '_apercu.jpg'}")
 
 
 if __name__ == "__main__":
